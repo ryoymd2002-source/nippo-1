@@ -6,7 +6,7 @@ import { reportToCsv, csvHeader } from "@/lib/csv-export";
 import { storageApi, StoredReport } from "@/lib/storage";
 import { fetchWeather } from "@/lib/weather";
 
-type AppTab = "create" | "history";
+type AppTab = "create" | "history" | "gallery" | "dashboard";
 type Step = "input" | "voice" | "review";
 
 const SAVED_SITES_KEY = "nippo-saved-sites";
@@ -67,6 +67,12 @@ export default function DailyReportApp() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [searchQuery, setSearchQuery] = useState("");
 
+  // カレンダー・ギャラリー・ダッシュボード 関連
+  const [historyViewMode, setHistoryViewMode] = useState<"list" | "calendar">("list");
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const [lightboxPhoto, setLightboxPhoto] = useState<{ photo: PhotoEntry; report: StoredReport } | null>(null);
+  const [galleryGroupBy, setGalleryGroupBy] = useState<"site" | "date">("site");
+
   const formatSavedAt = (iso?: string) => {
     if (!iso) return "";
     const d = new Date(iso);
@@ -107,7 +113,7 @@ export default function DailyReportApp() {
     }
   }, [authorName]);
 
-  // 履歴の取得
+  // 履歴の取得（履歴・ギャラリー・ダッシュボード タブで読み込み）
   const loadHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
@@ -126,7 +132,7 @@ export default function DailyReportApp() {
   }, []);
 
   useEffect(() => {
-    if (tab === "history") {
+    if (tab === "history" || tab === "gallery" || tab === "dashboard") {
       loadHistory();
     }
   }, [tab, loadHistory]);
@@ -430,6 +436,97 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
     setReport((r) => (r ? { ...r, ...patch } : r));
   };
 
+  // === カレンダー用ヘルパー ===
+  const getMonthDateRange = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    return { firstDay, lastDay, year, month };
+  };
+
+  const calendarNav = (dir: -1 | 1) => {
+    setCalendarDate((prev) => {
+      const d = new Date(prev);
+      d.setMonth(d.getMonth() + dir);
+      return d;
+    });
+  };
+
+  // カレンダー用：日付→報告有無マップ
+  const reportDateMap = new Map<string, StoredReport[]>();
+  filteredHistory.forEach((h) => {
+    const key = h.report_date;
+    if (!reportDateMap.has(key)) reportDateMap.set(key, []);
+    reportDateMap.get(key)!.push(h);
+  });
+
+  // カレンダーグリッド生成
+  const buildCalendarGrid = () => {
+    const { year, month } = getMonthDateRange(calendarDate);
+    const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: ({ day: number; reports: StoredReport[] } | null)[] = [];
+    
+    // 前月の空白埋め
+    for (let i = 0; i < firstDayOfWeek; i++) cells.push(null);
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      cells.push({ day: d, reports: reportDateMap.get(dateStr) ?? [] });
+    }
+    return cells;
+  };
+
+  // === ギャラリー用：写真収集 ===
+  const allGalleryPhotos = history
+    .filter((h) => h.payload?.photos?.length)
+    .flatMap((h) =>
+      (h.payload.photos as PhotoEntry[]).map((p) => ({ photo: p, report: h })),
+    );
+
+  // 現場名でグループ化
+  const galleryBySite = new Map<string, typeof allGalleryPhotos>();
+  allGalleryPhotos.forEach((item) => {
+    const site = item.report.payload?.site_name || "現場名なし";
+    if (!galleryBySite.has(site)) galleryBySite.set(site, []);
+    galleryBySite.get(site)!.push(item);
+  });
+
+  // 日付でグループ化
+  const galleryByDate = new Map<string, typeof allGalleryPhotos>();
+  allGalleryPhotos.forEach((item) => {
+    const date = item.report.report_date;
+    if (!galleryByDate.has(date)) galleryByDate.set(date, []);
+    galleryByDate.get(date)!.push(item);
+  });
+
+  // === ダッシュボード用：統計 ===
+  const dashboardStats = {
+    totalReports: filteredHistory.length,
+    uniqueSites: new Set(filteredHistory.map((h) => h.payload?.site_name).filter(Boolean)).size,
+    uniqueAuthors: new Set(filteredHistory.map((h) => h.author_name).filter(Boolean)).size,
+    totalLabor: filteredHistory.reduce((sum, h) => sum + (h.payload?.labor_count ?? 0), 0),
+    weatherCounts: new Map<string, number>(),
+    siteCounts: new Map<string, number>(),
+  };
+  filteredHistory.forEach((h) => {
+    const w = h.payload?.weather;
+    if (w) dashboardStats.weatherCounts.set(w, (dashboardStats.weatherCounts.get(w) ?? 0) + 1);
+    const s = h.payload?.site_name;
+    if (s) dashboardStats.siteCounts.set(s, (dashboardStats.siteCounts.get(s) ?? 0) + 1);
+  });
+  const topSites = Array.from(dashboardStats.siteCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  // 日付ごとの報告数（棒グラフ用）
+  const reportsPerDay = new Map<string, number>();
+  filteredHistory.forEach((h) => {
+    reportsPerDay.set(h.report_date, (reportsPerDay.get(h.report_date) ?? 0) + 1);
+  });
+  const maxReportsPerDay = Math.max(...Array.from(reportsPerDay.values()), 1);
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-4 px-4 pb-28 pt-4 sm:max-w-2xl sm:px-6 lg:max-w-3xl">
       <header className="flex items-center justify-between flex-wrap gap-2">
@@ -440,6 +537,8 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
         <div className="flex bg-slate-900/80 p-1 rounded-xl border border-slate-800">
           <button onClick={() => setTab("create")} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "create" ? "bg-amber-500 text-slate-950 shadow-lg" : "text-slate-400"}`}>作成</button>
           <button onClick={() => setTab("history")} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "history" ? "bg-amber-500 text-slate-950 shadow-lg" : "text-slate-400"}`}>履歴</button>
+          <button onClick={() => setTab("gallery")} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "gallery" ? "bg-amber-500 text-slate-950 shadow-lg" : "text-slate-400"}`}>📷 写真</button>
+          <button onClick={() => { setTab("dashboard"); }} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "dashboard" ? "bg-amber-500 text-slate-950 shadow-lg" : "text-slate-400"}`}>📊 集計</button>
         </div>
       </header>
 
@@ -685,7 +784,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
             </section>
           )}
         </>
-      ) : (
+      ) : tab === "history" ? (
         <section className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
           <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 space-y-4 shadow-xl">
             <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">絞り込みと出力</h2>
@@ -722,47 +821,332 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
             </div>
           </div>
 
-          <div className="space-y-3">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
-              履歴一覧 ({filteredHistory.length}件)
-              {history.length !== filteredHistory.length && (
-                <span className="text-slate-600 font-normal"> / 全{history.length}件</span>
-              )}
-            </h2>
-            {filteredHistory.length > 0 ? (
-              filteredHistory.map((h) => (
-                <div key={h.id} className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 hover:bg-slate-800/60 transition-all">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-[10px] font-bold text-amber-500/80">{h.report_date}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-500">{formatSavedAt(h.saved_at)}</span>
-                      <button
-                        onClick={() => deleteReport(h.id)}
-                        className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors"
-                      >
-                        削除
-                      </button>
+          {/* 表示切替：一覧 / カレンダー */}
+          <div className="flex gap-1 p-1 rounded-xl border border-slate-800 bg-slate-900/40 self-start">
+            <button
+              onClick={() => setHistoryViewMode("list")}
+              className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all ${historyViewMode === "list" ? "bg-amber-500/20 text-amber-400" : "text-slate-500 hover:text-slate-300"}`}
+            >
+              📋 一覧
+            </button>
+            <button
+              onClick={() => setHistoryViewMode("calendar")}
+              className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all ${historyViewMode === "calendar" ? "bg-amber-500/20 text-amber-400" : "text-slate-500 hover:text-slate-300"}`}
+            >
+              📅 カレンダー
+            </button>
+          </div>
+
+          {historyViewMode === "list" ? (
+            /* ===== 一覧表示 ===== */
+            <div className="space-y-3">
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
+                履歴一覧 ({filteredHistory.length}件)
+                {history.length !== filteredHistory.length && (
+                  <span className="text-slate-600 font-normal"> / 全{history.length}件</span>
+                )}
+              </h2>
+              {filteredHistory.length > 0 ? (
+                filteredHistory.map((h) => (
+                  <div key={h.id} className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 hover:bg-slate-800/60 transition-all">
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="text-[10px] font-bold text-amber-500/80">{h.report_date}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-500">{formatSavedAt(h.saved_at)}</span>
+                        <button
+                          onClick={() => deleteReport(h.id)}
+                          className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors"
+                        >
+                          削除
+                        </button>
+                      </div>
                     </div>
+                    <p className="text-[10px] font-bold text-slate-500 mb-1">{h.author_name}</p>
+                    <button
+                      onClick={() => setSelectedHistory(h)}
+                      className="w-full text-left"
+                    >
+                      <h3 className="text-sm font-bold text-slate-200">{h.payload?.site_name || "現場名なし"}</h3>
+                      <p className="text-xs text-slate-500 line-clamp-1">{h.payload?.work_items?.[0]?.description || "内容なし"}</p>
+                    </button>
                   </div>
-                  <p className="text-[10px] font-bold text-slate-500 mb-1">{h.author_name}</p>
-                  <button
-                    onClick={() => setSelectedHistory(h)}
-                    className="w-full text-left"
-                  >
-                    <h3 className="text-sm font-bold text-slate-200">{h.payload?.site_name || "現場名なし"}</h3>
-                    <p className="text-xs text-slate-500 line-clamp-1">{h.payload?.work_items?.[0]?.description || "内容なし"}</p>
-                  </button>
+                ))
+              ) : (
+                <p className="text-center py-10 text-slate-600 text-sm">該当する日報はありません</p>
+              )}
+            </div>
+          ) : (
+            /* ===== カレンダー表示 ===== */
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl space-y-3">
+              {/* 月移動 */}
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => calendarNav(-1)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all text-xs font-bold"
+                >
+                  ◀
+                </button>
+                <h3 className="text-sm font-bold text-white">
+                  {calendarDate.getFullYear()}年{calendarDate.getMonth() + 1}月
+                </h3>
+                <button
+                  onClick={() => calendarNav(1)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all text-xs font-bold"
+                >
+                  ▶
+                </button>
+              </div>
+
+              {/* 曜日ヘッダー */}
+              <div className="grid grid-cols-7 gap-1 text-center">
+                {["日", "月", "火", "水", "木", "金", "土"].map((d, i) => (
+                  <div key={i} className={`text-[10px] font-bold py-1 ${i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-slate-500"}`}>
+                    {d}
+                  </div>
+                ))}
+              </div>
+
+              {/* 日付グリッド */}
+              <div className="grid grid-cols-7 gap-1">
+                {buildCalendarGrid().map((cell, i) =>
+                  cell ? (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        const dateStr = `${calendarDate.getFullYear()}-${String(calendarDate.getMonth() + 1).padStart(2, "0")}-${String(cell.day).padStart(2, "0")}`;
+                        setStartDate(dateStr);
+                        setEndDate(dateStr);
+                        setHistoryViewMode("list");
+                      }}
+                      className={`aspect-square rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all
+                        ${cell.reports.length > 0
+                          ? "bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20"
+                          : "bg-slate-950/40 border border-slate-800/50 text-slate-600 hover:bg-slate-800/50"
+                        }`}
+                    >
+                      <span>{cell.day}</span>
+                      {cell.reports.length > 0 && (
+                        <span className="text-[8px] mt-0.5 text-amber-400/80">{cell.reports.length}件</span>
+                      )}
+                    </button>
+                  ) : (
+                    <div key={i} className="aspect-square" />
+                  ),
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      ) : tab === "gallery" ? (
+        /* ===== 写真ギャラリー ===== */
+        <section className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+              写真ギャラリー
+              <span className="ml-2 text-slate-600 font-normal">({allGalleryPhotos.length}枚)</span>
+            </h2>
+            <div className="flex gap-1 p-1 rounded-xl border border-slate-800 bg-slate-900/40">
+              <button
+                onClick={() => setGalleryGroupBy("site")}
+                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${galleryGroupBy === "site" ? "bg-amber-500/20 text-amber-400" : "text-slate-500 hover:text-slate-300"}`}
+              >
+                現場別
+              </button>
+              <button
+                onClick={() => setGalleryGroupBy("date")}
+                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${galleryGroupBy === "date" ? "bg-amber-500/20 text-amber-400" : "text-slate-500 hover:text-slate-300"}`}
+              >
+                日付別
+              </button>
+            </div>
+          </div>
+
+          {allGalleryPhotos.length === 0 && (
+            <div className="text-center py-16 text-slate-600">
+              <p className="text-4xl mb-3">📷</p>
+              <p className="text-sm">写真が添付された日報がまだありません</p>
+            </div>
+          )}
+
+          {galleryGroupBy === "site"
+            ? Array.from(galleryBySite.entries()).map(([site, items]) => (
+                <div key={site} className="space-y-2">
+                  <h3 className="text-sm font-bold text-amber-400/90 px-1">{site}（{items.length}枚）</h3>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {items.map(({ photo, report }) => (
+                      <button
+                        key={photo.id}
+                        onClick={() => setLightboxPhoto({ photo, report })}
+                        className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900 hover:border-amber-500/50 transition-all group"
+                      >
+                        <img src={photo.data_url} alt={photo.caption || "現場写真"} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ))
-            ) : (
-              <p className="text-center py-10 text-slate-600 text-sm">該当する日報はありません</p>
-            )}
+            : Array.from(galleryByDate.entries()).map(([date, items]) => (
+                <div key={date} className="space-y-2">
+                  <h3 className="text-sm font-bold text-amber-400/90 px-1">{date}（{items.length}枚）</h3>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {items.map(({ photo, report }) => (
+                      <button
+                        key={photo.id}
+                        onClick={() => setLightboxPhoto({ photo, report })}
+                        className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900 hover:border-amber-500/50 transition-all group"
+                      >
+                        <img src={photo.data_url} alt={photo.caption || "現場写真"} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+          {/* ローディング */}
+          {loadingHistory && history.length === 0 && (
+            <div className="text-center py-16 text-slate-600 text-sm">読み込み中...</div>
+          )}
+        </section>
+      ) : (
+        /* ===== ダッシュボード ===== */
+        <section className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
+          <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+            ダッシュボード
+            <span className="ml-2 text-slate-600 font-normal">（{startDate} 〜 {endDate}）</span>
+          </h2>
+
+          {/* 統計カード */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">報告件数</p>
+              <p className="text-2xl font-bold text-white">{dashboardStats.totalReports}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">現場数</p>
+              <p className="text-2xl font-bold text-white">{dashboardStats.uniqueSites}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">報告者数</p>
+              <p className="text-2xl font-bold text-white">{dashboardStats.uniqueAuthors}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">延べ人員</p>
+              <p className="text-2xl font-bold text-white">{dashboardStats.totalLabor}</p>
+            </div>
           </div>
+
+          {/* 天気内訳 */}
+          {dashboardStats.weatherCounts.size > 0 && (
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">天気内訳</h3>
+              <div className="flex flex-wrap gap-2">
+                {["晴", "曇", "雨", "雪"].map((w) => {
+                  const count = dashboardStats.weatherCounts.get(w) ?? 0;
+                  if (count === 0) return null;
+                  const pct = Math.round((count / dashboardStats.totalReports) * 100);
+                  return (
+                    <div key={w} className="flex-1 min-w-[60px] text-center">
+                      <div className="text-xl mb-1">
+                        {w === "晴" ? "☀️" : w === "曇" ? "☁️" : w === "雨" ? "🌧️" : "❄️"}
+                      </div>
+                      <p className="text-sm font-bold text-white">{count}件</p>
+                      <div className="w-full h-1.5 rounded-full bg-slate-800 mt-1 overflow-hidden">
+                        <div className="h-full rounded-full bg-amber-500/60" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 現場別ランキング */}
+          {topSites.length > 0 && (
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">現場別 報告数 TOP5</h3>
+              <div className="space-y-2">
+                {topSites.map(([site, count], i) => {
+                  const pct = Math.round((count / dashboardStats.totalReports) * 100);
+                  return (
+                    <div key={site}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-slate-300">
+                          <span className="text-amber-400 font-bold mr-1">#{i + 1}</span>
+                          {site}
+                        </span>
+                        <span className="text-slate-500">{count}件（{pct}%）</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 日別報告数（棒グラフ） */}
+          {reportsPerDay.size > 0 && (
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">日別 報告数</h3>
+              <div className="flex items-end gap-1 overflow-x-auto pb-1">
+                {Array.from(reportsPerDay.entries()).sort().map(([date, count]) => (
+                  <div key={date} className="flex flex-col items-center gap-1 min-w-[28px]">
+                    <span className="text-[8px] text-slate-500">{count}</span>
+                    <div
+                      className="w-full rounded-t-md bg-amber-500/60 hover:bg-amber-500/80 transition-all"
+                      style={{
+                        height: `${Math.max(4, (count / maxReportsPerDay) * 60)}px`,
+                        minHeight: "4px",
+                      }}
+                      title={`${date}: ${count}件`}
+                    />
+                    <span className="text-[7px] text-slate-600 whitespace-nowrap">{date.slice(-5)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ローディング */}
+          {loadingHistory && history.length === 0 && (
+            <div className="text-center py-16 text-slate-600 text-sm">読み込み中...</div>
+          )}
         </section>
       )}
 
-      {selectedHistory && (
+      {/* ライトボックス（写真拡大表示） */}
+      {lightboxPhoto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm" onClick={() => setLightboxPhoto(null)}></div>
+          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col items-center">
+            <button
+              onClick={() => setLightboxPhoto(null)}
+              className="absolute -top-10 right-0 text-white/60 hover:text-white transition-colors text-sm font-bold"
+            >
+              ✕ 閉じる
+            </button>
+            <img
+              src={lightboxPhoto.photo.data_url}
+              alt={lightboxPhoto.photo.caption || "現場写真"}
+              className="w-full max-h-[70vh] object-contain rounded-2xl border border-slate-700/50"
+            />
+            <div className="mt-3 text-center">
+              {lightboxPhoto.photo.caption && (
+                <p className="text-sm text-white font-bold">{lightboxPhoto.photo.caption}</p>
+              )}
+              <p className="text-[10px] text-slate-500 mt-1">
+                {lightboxPhoto.report.payload?.site_name && `${lightboxPhoto.report.payload.site_name} / `}
+                {lightboxPhoto.report.report_date} / {lightboxPhoto.report.author_name}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedHistory && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setSelectedHistory(null)}></div>
           <div className="relative w-full max-w-md max-h-[80vh] overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl flex flex-col sm:max-w-2xl">
             <div className="p-5 border-b border-slate-800 flex justify-between items-center">
