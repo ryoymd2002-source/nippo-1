@@ -72,7 +72,7 @@ function mergeMissing(primary: DailyReport, fallback: DailyReport): DailyReport 
 }
 
 async function structureWithGemini(transcript: string, siteHint: string, reportDate: string, apiKey: string): Promise<DailyReport | null> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   
   try {
     const res = await fetch(url, {
@@ -90,10 +90,17 @@ async function structureWithGemini(transcript: string, siteHint: string, reportD
       })
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => "unknown");
+      console.error(`Gemini API error (${res.status}): ${errorBody}`);
+      return null;
+    }
     const data = await res.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return null;
+    if (!text) {
+      console.error("Gemini API: empty response", JSON.stringify(data));
+      return null;
+    }
     const parsed = safeJsonParse(text);
     return parsed ? (parsed as DailyReport) : null;
   } catch (e) {
@@ -109,11 +116,18 @@ export async function structureReport(transcript: string, siteHint: string = "",
 
   let parsed: Partial<DailyReport> | null = null;
   let source: "gemini" | "heuristic" = "heuristic";
+  let warning: string | undefined;
 
   // Gemini (無料) を試す
   if (geminiKey) {
     parsed = await structureWithGemini(transcript, siteHint, date, geminiKey);
-    if (parsed) source = "gemini";
+    if (parsed) {
+      source = "gemini";
+    } else {
+      warning = "Gemini API呼び出しに失敗しました。ヒューリスティックで構造化します。";
+    }
+  } else {
+    warning = "GEMINI_API_KEYが設定されていません。ヒューリスティックで構造化します。";
   }
 
   const baseReport: DailyReport = {
@@ -133,5 +147,5 @@ export async function structureReport(transcript: string, siteHint: string = "",
   const finalReport = mergeMissing(baseReport, fallback);
   if (!parsed) source = "heuristic";
 
-  return { report: finalReport, source };
+  return { report: finalReport, source, warning };
 }

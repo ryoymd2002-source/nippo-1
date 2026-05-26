@@ -62,3 +62,161 @@ body {
 .animate-spin {
   animation: spin 1s linear infinite;
 }
+
+/* ===== 印刷向けレイアウト ===== */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    min-height: auto !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* アプリのヘッダー・タブ・操作系を非表示 */
+  .no-print {
+    display: none !important;
+  }
+
+  /* 印刷領域: A4サイズ仕様 */
+  .print-area {
+    display: block !important;
+    position: static !important;
+    visibility: visible !important;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 15mm 20mm;
+    background: white !important;
+    color: #1a1a1a !important;
+    font-size: 11pt !important;
+    line-height: 1.6 !important;
+    font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif !important;
+  }
+
+  .print-area * {
+    color: #1a1a1a !important;
+    background: transparent !important;
+    border-color: #ccc !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .print-area h1 {
+    font-size: 18pt !important;
+    font-weight: bold !important;
+    border-bottom: 2px solid #333 !important;
+    padding-bottom: 4mm !important;
+    margin-bottom: 6mm !important;
+  }
+
+  .print-area h2 {
+    font-size: 13pt !important;
+    font-weight: bold !important;
+    border-bottom: 1px solid #999 !important;
+    padding-bottom: 2mm !important;
+    margin-top: 5mm !important;
+    margin-bottom: 3mm !important;
+  }
+
+  .print-area .print-meta {
+    display: flex !important;
+    gap: 10mm !important;
+    font-size: 10pt !important;
+    color: #555 !important;
+    margin-bottom: 4mm !important;
+  }
+
+  .print-area .print-label {
+    font-size: 8pt !important;
+    font-weight: bold !important;
+    color: #666 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.1em !important;
+    margin-bottom: 1mm !important;
+  }
+
+  .print-area table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-bottom: 4mm !important;
+  }
+
+  .print-area table th,
+  .print-area table td {
+    border: 1px solid #ccc !important;
+    padding: 3mm 4mm !important;
+    text-align: left !important;
+    font-size: 10pt !important;
+  }
+
+  .print-area table th {
+    background: #f5f5f5 !important;
+    font-weight: bold !important;
+  }
+
+  .print-area .print-remarks {
+    border: 1px solid #ccc !important;
+    padding: 3mm 4mm !important;
+    min-height: 20mm !important;
+    font-size: 10pt !important;
+  }
+
+  .print-area .print-photos {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 3mm !important;
+    margin-top: 3mm !important;
+  }
+
+  .print-area .print-photos img {
+    width: 40mm !important;
+    height: 30mm !important;
+    object-fit: cover !important;
+    border: 1px solid #ddd !important;
+  }
+
+  .print-area .print-footer {
+    margin-top: 10mm !important;
+    padding-top: 2mm !important;
+    border-top: 1px solid #ccc !important;
+    font-size: 8pt !important;
+    color: #999 !important;
+    text-align: center !important;
+  }
+
+  /* モーダル内の印刷領域を表示（fix for modal print） */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    z-index: auto !important;
+  }
+
+  .fixed.inset-0 > .absolute.inset-0 {
+    display: none !important;
+  }
+
+  .fixed.inset-0 > .relative {
+    max-width: 210mm !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    margin: 0 auto !important;
+  }
+
+  .fixed.inset-0 > .relative > .border-b {
+    display: none !important;
+  }
+
+  .fixed.inset-0 > .relative > .overflow-y-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* ページ分割 */
+  .page-break {
+    page-break-before: always !important;
+  }
+}

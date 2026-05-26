@@ -12,6 +12,13 @@ export interface MaterialEntry {
   unit: string | null;
 }
 
+export interface PhotoEntry {
+  id: string;
+  data_url: string; // base64 data URL
+  caption: string;
+  taken_at: string; // ISO timestamp
+}
+
 export interface DailyReport {
   report_date: string;
   site_name: string;
