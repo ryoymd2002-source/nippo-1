@@ -692,14 +692,14 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
   const chartDailyData = Array.from(reportsPerDay.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, count]) => ({ date: date.slice(-5), 報告数: count }));
-  const CHART_COLORS = ["#818cf8", "#10b981", "#f59e0b", "#f472b6", "#a78bfa", "#34d399", "#fb923c"];
-  const PIE_COLORS = ["#818cf8", "#f59e0b", "#60a5fa", "#e2e8f0"];
+  const CHART_COLORS = ["#60a5fa", "#10b981", "#f59e0b", "#f472b6", "#a78bfa", "#34d399", "#fb923c"];
+  const PIE_COLORS = ["#60a5fa", "#f59e0b", "#60a5fa", "#e2e8f0"];
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-4 px-4 pb-28 pt-4 sm:max-w-2xl sm:px-6 lg:max-w-3xl">
       <header className="flex items-center justify-between flex-wrap gap-2">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] gradient-text-indigo">Daily Report</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] gradient-text-primary">Daily Report</p>
           <h1 className="text-2xl font-bold tracking-tight text-white">日報アプリ <span className="gradient-text text-lg">PRO</span></h1>
         </div>
         <div className="flex bg-slate-900/80 p-1 rounded-xl border border-slate-800">
@@ -1066,7 +1066,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">現場進捗 タイムライン</h2>
-                  <h3 className="text-lg font-bold gradient-text-indigo mt-1">{siteProgress}</h3>
+                  <h3 className="text-lg font-bold gradient-text-primary mt-1">{siteProgress}</h3>
                 </div>
                 <button
                   onClick={() => setSiteProgress(null)}
@@ -1305,7 +1305,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
           {galleryGroupBy === "site"
             ? Array.from(galleryBySite.entries()).map(([site, items]) => (
                 <div key={site} className="space-y-2">
-                  <h3 className="flex items-center gap-2 text-sm font-bold text-primary-300 px-1"><span className="accent-bar-indigo inline-block w-1 h-4 rounded-full" />{site}（{items.length}枚）</h3>
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-primary-300 px-1"><span className="accent-bar-primary inline-block w-1 h-4 rounded-full" />{site}（{items.length}枚）</h3>
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {items.map(({ photo, report }) => (
                       <button
@@ -1321,7 +1321,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               ))
             : Array.from(galleryByDate.entries()).map(([date, items]) => (
                 <div key={date} className="space-y-2">
-                  <h3 className="flex items-center gap-2 text-sm font-bold text-primary-300 px-1"><span className="accent-bar-indigo inline-block w-1 h-4 rounded-full" />{date}（{items.length}枚）</h3>
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-primary-300 px-1"><span className="accent-bar-primary inline-block w-1 h-4 rounded-full" />{date}（{items.length}枚）</h3>
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {items.map(({ photo, report }) => (
                       <button
@@ -1428,8 +1428,8 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                 <LineChart data={chartDailyData} margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
                   <defs>
                     <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#60a5fa" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -1439,7 +1439,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                     contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "12px", fontSize: "12px" }}
                     formatter={(value: any) => [`${value}件`, "報告数"]}
                   />
-                  <Line type="monotone" dataKey="報告数" stroke="#818cf8" strokeWidth={2.5} dot={{ fill: "#818cf8", r: 3, stroke: "#818cf8" }} activeDot={{ r: 6, fill: "#818cf8" }} />
+                  <Line type="monotone" dataKey="報告数" stroke="#60a5fa" strokeWidth={2.5} dot={{ fill: "#60a5fa", r: 3, stroke: "#60a5fa" }} activeDot={{ r: 6, fill: "#60a5fa" }} />
                   <Area type="monotone" dataKey="報告数" fill="url(#lineGradient)" stroke="none" />
                 </LineChart>
               </ResponsiveContainer>
@@ -1488,7 +1488,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
           <div className="relative w-full max-w-md max-h-[80vh] overflow-hidden glass-card rounded-3xl flex flex-col sm:max-w-2xl">
             <div className="p-5 border-b border-slate-800 flex justify-between items-center">
               <div>
-                <p className="text-[10px] font-bold gradient-text-indigo uppercase">{selectedHistory.report_date}</p>
+                <p className="text-[10px] font-bold gradient-text-primary uppercase">{selectedHistory.report_date}</p>
                 <h3 className="text-lg font-bold text-white">{selectedHistory.payload?.site_name || "現場名なし"}</h3>
                 <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">{selectedHistory.author_name}</p>
                 <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">{formatSavedAt(selectedHistory.saved_at) || "—"}</p>
