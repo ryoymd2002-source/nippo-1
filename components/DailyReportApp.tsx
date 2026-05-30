@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DailyReport, PhotoEntry } from "@/lib/report-types";
+import { emptyReport, type DailyReport, type PhotoEntry } from "@/lib/report-types";
 import { reportToCsv, csvHeader } from "@/lib/csv-export";
 import { storageApi, StoredReport } from "@/lib/storage";
 import { fetchWeather } from "@/lib/weather";
@@ -312,7 +312,11 @@ export default function DailyReportApp() {
   };
 
   const saveToLocal = async () => {
-    if (!report) return;
+    const target = report ?? emptyReport(transcript);
+    if (!transcript.trim()) {
+      setError("保存するテキストがありません");
+      return;
+    }
     if (!authorName.trim()) {
       setError("保存するには氏名を入力してください");
       return;
@@ -321,15 +325,15 @@ export default function DailyReportApp() {
     setError(null);
     try {
       // 現場名を保存済みリストに追加
-      if (report.site_name) {
-        saveSiteName(report.site_name);
+      if (target.site_name) {
+        saveSiteName(target.site_name);
       }
 
       // 写真をクラウドストレージにアップロード（base64 → Storage URL）
-      if (report.photos && report.photos.length > 0) {
+      if (target.photos && target.photos.length > 0) {
         const tmpId = `tmp-${Date.now()}`;
-        for (let i = 0; i < report.photos.length; i++) {
-          const photo = report.photos[i];
+        for (let i = 0; i < target.photos.length; i++) {
+          const photo = target.photos[i];
           // data_url が存在し、まだ storage_url がない場合のみアップロード
           if (photo.data_url && !photo.storage_url) {
             try {
@@ -346,8 +350,8 @@ export default function DailyReportApp() {
 
       await storageApi.saveReport({
         author_name: authorName.trim(),
-        report_date: report.report_date,
-        payload: report,
+        report_date: target.report_date,
+        payload: target,
       });
       alert("保存しました！");
       setTab("history");
@@ -904,7 +908,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               <button
                 type="button"
                 onClick={saveToLocal}
-                disabled={saving || !report}
+                disabled={saving || !transcript.trim()}
                 className="rounded-2xl bg-gradient-to-r from-primary-400 to-primary-500 py-4 text-sm font-bold text-white shadow-lg shadow-primary-500/20 hover:from-primary-300 hover:to-primary-400 active:scale-[0.98] transition-all disabled:opacity-30"
               >
                 {saving ? "保存中..." : "💾 保存する"}
@@ -916,13 +920,51 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               >
                 🔄 やり直す
               </button>
-              {report && (
-                <>
-                  <button type="button" onClick={() => printReport(report, authorName, new Date().toISOString())} className="rounded-2xl border border-blue-200 bg-blue-50 py-4 text-sm font-bold text-blue-600 hover:bg-blue-100 active:scale-[0.98] transition-all">印刷する</button>
-                  <button type="button" onClick={() => downloadPdf(report, authorName, new Date().toISOString())} className="rounded-2xl border border-rose-200 bg-rose-50 py-4 text-sm font-bold text-rose-600 hover:bg-rose-100 active:scale-[0.98] transition-all">📄 PDF出力</button>
-                  <button type="button" onClick={saveAsTemplate} className="rounded-2xl border border-emerald-200 bg-emerald-50 py-4 text-sm font-bold text-emerald-600 hover:bg-emerald-100 active:scale-[0.98] transition-all">📋 テンプレート保存</button>
-                </>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const r = report ?? emptyReport(transcript);
+                  printReport(r, authorName, new Date().toISOString());
+                }}
+                disabled={!transcript.trim()}
+                className="rounded-2xl border border-blue-200 bg-blue-50 py-4 text-sm font-bold text-blue-600 hover:bg-blue-100 active:scale-[0.98] transition-all disabled:opacity-30"
+              >
+                印刷する
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const r = report ?? emptyReport(transcript);
+                  downloadPdf(r, authorName, new Date().toISOString());
+                }}
+                disabled={!transcript.trim()}
+                className="rounded-2xl border border-rose-200 bg-rose-50 py-4 text-sm font-bold text-rose-600 hover:bg-rose-100 active:scale-[0.98] transition-all disabled:opacity-30"
+              >
+                📄 PDF出力
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const r = report ?? emptyReport(transcript);
+                  const name = prompt("テンプレート名を入力してください", r.site_name || "テンプレート");
+                  if (!name) return;
+                  const newTemplate: Template = {
+                    id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+                    name,
+                    site_name: r.site_name || "",
+                    materials: r.materials.map((m) => ({ name: m.name, quantity: m.quantity, unit: m.unit })),
+                    work_items: r.work_items.map((w) => ({ description: w.description })),
+                    created_at: new Date().toISOString(),
+                  };
+                  const next = [newTemplate, ...templates].slice(0, 20);
+                  setTemplates(next);
+                  saveTemplatesToDisk(next);
+                }}
+                disabled={!transcript.trim()}
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 py-4 text-sm font-bold text-emerald-600 hover:bg-emerald-100 active:scale-[0.98] transition-all disabled:opacity-30"
+              >
+                📋 テンプレート保存
+              </button>
             </div>
           </section>
 
