@@ -14,7 +14,6 @@ import {
 } from "recharts";
 
 type AppTab = "create" | "history" | "gallery" | "dashboard";
-type Step = "input" | "voice" | "review";
 
 const SAVED_SITES_KEY = "nippo-saved-sites";
 
@@ -66,7 +65,6 @@ function saveTemplatesToDisk(templates: Template[]) {
 
 export default function DailyReportApp() {
   const [tab, setTab] = useState<AppTab>("create");
-  const [step, setStep] = useState<Step>("input");
   const [siteHint, setSiteHint] = useState("");
   const [showSiteDropdown, setShowSiteDropdown] = useState(false);
   const [savedSites, setSavedSites] = useState<string[]>(loadSavedSites);
@@ -264,7 +262,6 @@ export default function DailyReportApp() {
     speechRef.current = rec;
     rec.start();
     setListening(true);
-    setStep("voice");
   };
 
   const runStructure = async () => {
@@ -306,7 +303,7 @@ export default function DailyReportApp() {
       setReport(data.report);
       setSource(data.source ?? "");
       setWarning(data.warning ?? null);
-      setStep("review");
+      setTranscript(reportToFormattedText(data.report));
     } catch {
       setError("構造化APIに接続できませんでした");
     } finally {
@@ -354,7 +351,6 @@ export default function DailyReportApp() {
       });
       alert("保存しました！");
       setTab("history");
-      setStep("input");
       setReport(null);
       setTranscript("");
     } catch (e) {
@@ -738,6 +734,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
 
       {tab === "create" ? (
         <>
+          {/* --- 常時表示：現場名ヒント・報告日・報告者氏名 --- */}
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="relative glass-card rounded-2xl p-3" ref={siteDropdownRef}>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">現場名ヒント</label>
@@ -777,16 +774,16 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
           </section>
 
           {/* テンプレート読み込み */}
-          {templates.length > 0 && step !== "review" && (
+          {templates.length > 0 && (
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
-                className="flex items-center gap-2 glass-card rounded-2xl px-4 py-2.5 text-sm font-bold text-emerald-300 hover:bg-white/5 active:scale-[0.98] transition-all"
+                className="flex items-center gap-2 glass-card rounded-2xl px-4 py-2.5 text-sm font-bold text-emerald-600 hover:bg-emerald-50 active:scale-[0.98] transition-all"
               >
                 <span>📋</span>
                 テンプレートから読み込む
-                <span className="text-[10px] text-emerald-500/60">（{templates.length}件）</span>
+                <span className="text-[10px] text-emerald-400">（{templates.length}件）</span>
               </button>
               {showTemplateDropdown && (
                 <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-slate-200 bg-white shadow-lg max-h-60 overflow-y-auto">
@@ -815,83 +812,84 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
             </div>
           )}
 
-          {step !== "review" && (
-            <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {/* 音声認識ボタン（録音機能なし） */}
-              <div className="glass-card rounded-3xl p-1 flex">
+          {/* --- 常時表示：入力エリア（音声・テキスト・写真） --- */}
+          <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* 音声認識ボタン */}
+            <div className="glass-card rounded-3xl p-1 flex">
+              <button
+                type="button"
+                onClick={() => (listening ? stopSpeech() : startSpeech())}
+                disabled={!canSpeech}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-4 text-sm font-bold transition-all ${
+                  listening
+                    ? "bg-red-500 text-white shadow-lg shadow-red-500/20"
+                    : "text-slate-500 hover:bg-slate-100"
+                } disabled:opacity-20`}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+                {listening ? "認識中..." : "音声入力"}
+              </button>
+            </div>
+
+            <textarea
+              className="w-full min-h-[200px] rounded-3xl border border-slate-200 bg-white p-5 text-base text-slate-700 outline-none ring-primary-400/20 focus:ring-4 focus:border-primary-400/50 transition-all"
+              placeholder="例：A現場で9時からボード貼り。昼にビス1箱追加。17時終了。&#10;&#10;※ 音声入力を使用するか、直接入力してください"
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+            />
+
+            {/* 写真撮影・選択 */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => (listening ? stopSpeech() : startSpeech())}
-                  disabled={!canSpeech}
-                  className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-4 text-sm font-bold transition-all ${
-                    listening
-                      ? "bg-red-500 text-white shadow-lg shadow-red-500/20"
-                      : "text-slate-500 hover:bg-slate-100"
-                  } disabled:opacity-20`}
+                  onClick={handleAddPhoto}
+                  className="flex items-center gap-2 glass-card rounded-2xl px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  {listening ? "認識中..." : "音声入力"}
+                  写真を追加 {photos.length > 0 && `(${photos.length})`}
                 </button>
-              </div>
-
-              <textarea
-                className="w-full min-h-[200px] rounded-3xl border border-slate-200 bg-white p-5 text-base text-slate-700 outline-none ring-primary-400/20 focus:ring-4 focus:border-primary-400/50 transition-all"
-                placeholder="例：A現場で9時からボード貼り。昼にビス1箱追加。17時終了。&#10;&#10;※ 音声入力を使用するか、直接入力してください"
-                value={transcript}
-                onChange={(e) => setTranscript(e.target.value)}
-              />
-
-              {/* 写真撮影・選択 */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
+                {photos.length > 0 && (
                   <button
                     type="button"
-                    onClick={handleAddPhoto}
-                    className="flex items-center gap-2 glass-card rounded-2xl px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all"
+                    onClick={() => setPhotos([])}
+                    className="text-xs text-red-400/60 hover:text-red-400 transition-colors"
                   >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    写真を追加 {photos.length > 0 && `(${photos.length})`}
+                    すべて削除
                   </button>
-                  {photos.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setPhotos([])}
-                      className="text-xs text-red-400/60 hover:text-red-400 transition-colors"
-                    >
-                      すべて削除
-                    </button>
-                  )}
-                </div>
-
-                {/* 写真サムネイル一覧 */}
-                {photos.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                    {photos.map((p) => (
-                      <div key={p.id} className="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 bg-white hover:border-primary-400/30 transition-all">
-                        <img src={p.data_url} alt="現場写真" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        <button
-                          type="button"
-                          onClick={() => removePhoto(p.id)}
-                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
                 )}
               </div>
 
+              {photos.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {photos.map((p) => (
+                    <div key={p.id} className="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 bg-white hover:border-primary-400/30 transition-all">
+                      <img src={p.data_url} alt="現場写真" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(p.id)}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* --- アクションボタン（常時表示） --- */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={runStructure}
                 disabled={structuring || !transcript.trim()}
-                className="w-full rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 py-4 text-base font-bold text-white shadow-lg shadow-emerald-500/10 hover:from-emerald-400 hover:to-teal-500 active:scale-[0.98] disabled:opacity-30 transition-all"
+                className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 py-4 text-sm font-bold text-white shadow-lg shadow-emerald-500/10 hover:from-emerald-400 hover:to-teal-500 active:scale-[0.98] disabled:opacity-30 transition-all"
               >
                 {structuring ? (
                   <span className="flex items-center justify-center gap-2">
@@ -901,12 +899,35 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                     </svg>
                     構造化中...
                   </span>
-                ) : "日報データを生成する"}
+                ) : "⚡ 構造化する"}
               </button>
-            </section>
-          )}
+              <button
+                type="button"
+                onClick={saveToLocal}
+                disabled={saving || !report}
+                className="rounded-2xl bg-gradient-to-r from-primary-400 to-primary-500 py-4 text-sm font-bold text-white shadow-lg shadow-primary-500/20 hover:from-primary-300 hover:to-primary-400 active:scale-[0.98] transition-all disabled:opacity-30"
+              >
+                {saving ? "保存中..." : "💾 保存する"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setReport(null); setTranscript(""); setSource(""); setWarning(null); setError(null); setPhotos([]); }}
+                className="rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition-all shadow-sm"
+              >
+                🔄 やり直す
+              </button>
+              {report && (
+                <>
+                  <button type="button" onClick={() => printReport(report, authorName, new Date().toISOString())} className="rounded-2xl border border-blue-200 bg-blue-50 py-4 text-sm font-bold text-blue-600 hover:bg-blue-100 active:scale-[0.98] transition-all">印刷する</button>
+                  <button type="button" onClick={() => downloadPdf(report, authorName, new Date().toISOString())} className="rounded-2xl border border-rose-200 bg-rose-50 py-4 text-sm font-bold text-rose-600 hover:bg-rose-100 active:scale-[0.98] transition-all">📄 PDF出力</button>
+                  <button type="button" onClick={saveAsTemplate} className="rounded-2xl border border-emerald-200 bg-emerald-50 py-4 text-sm font-bold text-emerald-600 hover:bg-emerald-100 active:scale-[0.98] transition-all">📋 テンプレート保存</button>
+                </>
+              )}
+            </div>
+          </section>
 
-          {step === "review" && report && (
+          {/* --- 構造化結果の編集フィールド（reportがある時のみ表示） --- */}
+          {report && (
             <section className="space-y-4 animate-in fade-in zoom-in-95 duration-300 pb-10">
               <div className="glass-card rounded-3xl p-5 space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -993,14 +1014,6 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                     </span>
                   </div>
                 )}
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <button type="button" onClick={saveToLocal} disabled={saving} className="rounded-2xl bg-gradient-to-r from-primary-400 to-primary-500 py-4 text-sm font-bold text-white shadow-lg shadow-primary-500/20 hover:from-primary-300 hover:to-primary-400 active:scale-[0.98] transition-all disabled:opacity-30">保存する</button>
-                <button type="button" onClick={() => { setStep("input"); setReport(null); }} className="rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition-all shadow-sm">やり直す</button>
-                <button type="button" onClick={() => printReport(report, authorName, new Date().toISOString())} className="rounded-2xl border border-blue-200 bg-blue-50 py-4 text-sm font-bold text-blue-600 hover:bg-blue-100 active:scale-[0.98] transition-all">印刷する</button>
-                <button type="button" onClick={() => downloadPdf(report, authorName, new Date().toISOString())} className="rounded-2xl border border-rose-700/50 bg-rose-900/30 py-4 text-sm font-bold text-rose-300 hover:bg-rose-800/40 active:scale-[0.98] transition-all">📄 PDF出力</button>
-                <button type="button" onClick={saveAsTemplate} className="rounded-2xl border border-emerald-200 bg-emerald-50 py-4 text-sm font-bold text-emerald-600 hover:bg-emerald-100 active:scale-[0.98] transition-all">📋 テンプレート保存</button>
-                <button type="button" onClick={() => { setStep("input"); setTranscript(""); setReport(null); setPhotos([]); }} className="rounded-2xl border border-slate-200 bg-slate-50 py-4 text-sm font-bold text-slate-500 hover:bg-slate-100 active:scale-[0.98] transition-all">最初から</button>
               </div>
             </section>
           )}
@@ -1618,6 +1631,28 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
       </footer>
     </main>
   );
+}
+
+function reportToFormattedText(report: DailyReport): string {
+  const lines: string[] = [];
+  if (report.site_name) lines.push(`現場名：${report.site_name}`);
+  const weatherStr = report.weather
+    ? `${report.weather}${report.temperature_c != null ? ` (${report.temperature_c}℃)` : ""}`
+    : "";
+  if (weatherStr) lines.push(`天気：${weatherStr}`);
+  if (report.work_items.length > 0) {
+    lines.push("作業内容：");
+    report.work_items.forEach((w) => lines.push(`・${w.description}`));
+  }
+  if (report.materials.length > 0) {
+    const mats = report.materials
+      .filter((m) => m.name)
+      .map((m) => `${m.name}${m.quantity != null ? ` ${m.quantity}` : ""}${m.unit ?? ""}`);
+    if (mats.length) lines.push(`材料：${mats.join(" / ")}`);
+  }
+  if (report.labor_count != null) lines.push(`人員：${report.labor_count}名`);
+  if (report.remarks) lines.push(`備考：${report.remarks}`);
+  return lines.join("\n");
 }
 
 function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; }) {
