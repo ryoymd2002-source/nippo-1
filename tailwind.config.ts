@@ -44,11 +44,11 @@ const config: Config = {
           700: "#b45309",
         },
         surface: {
-          DEFAULT: "#0f172a",
-          light: "#1e293b",
-          lighter: "#334155",
-          card: "rgba(30, 41, 59, 0.5)",
-          border: "rgba(96, 165, 250, 0.12)",
+          DEFAULT: "#f8fafc",
+          light: "#ffffff",
+          lighter: "#f1f5f9",
+          card: "rgba(255, 255, 255, 0.85)",
+          border: "rgba(0, 0, 0, 0.06)",
         },
         success: {
           DEFAULT: "#10b981",
