@@ -5,6 +5,8 @@ import type { DailyReport, PhotoEntry } from "@/lib/report-types";
 import { reportToCsv, csvHeader } from "@/lib/csv-export";
 import { storageApi, StoredReport } from "@/lib/storage";
 import { fetchWeather } from "@/lib/weather";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 type AppTab = "create" | "history" | "gallery" | "dashboard";
 type Step = "input" | "voice" | "review";
@@ -25,6 +27,35 @@ function saveSavedSites(sites: string[]) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(SAVED_SITES_KEY, JSON.stringify(sites));
+  } catch { /* ignore */ }
+}
+
+// === テンプレート機能 ===
+interface Template {
+  id: string;
+  name: string;
+  site_name: string;
+  materials: { name: string; quantity: number | null; unit: string | null }[];
+  work_items: { description: string }[];
+  created_at: string;
+}
+
+const TEMPLATES_KEY = "nippo-templates";
+
+function loadTemplates(): Template[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(TEMPLATES_KEY);
+    return raw ? (JSON.parse(raw) as Template[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveTemplatesToDisk(templates: Template[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
   } catch { /* ignore */ }
 }
 
@@ -72,6 +103,9 @@ export default function DailyReportApp() {
   const [calendarDate, setCalendarDate] = useState(() => new Date());
   const [lightboxPhoto, setLightboxPhoto] = useState<{ photo: PhotoEntry; report: StoredReport } | null>(null);
   const [galleryGroupBy, setGalleryGroupBy] = useState<"site" | "date">("site");
+  const [templates, setTemplates] = useState<Template[]>(loadTemplates);
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const [siteProgress, setSiteProgress] = useState<string | null>(null);
 
   const formatSavedAt = (iso?: string) => {
     if (!iso) return "";
@@ -432,6 +466,105 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
     printWin.document.close();
   }, []);
 
+  // === PDFダウンロード（jspdf + html2canvas） ===
+  const downloadPdf = useCallback(async (report: DailyReport, author: string, savedAt: string) => {
+    const pdfDiv = document.createElement("div");
+    pdfDiv.style.cssText = "position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:40px;font-family: sans-serif;color:#1a1a1a;";
+    const weatherStr = report.weather
+      ? `${report.weather}${report.temperature_c != null ? ` (${report.temperature_c}℃)` : ""}`
+      : "—";
+    const materialsStr = report.materials?.length
+      ? report.materials.map((m: any) => `${m.name}${m.quantity != null ? ` ${m.quantity}` : ""}${m.unit ?? ""}`).join(" / ")
+      : "—";
+    const photosHtml = report.photos?.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">${report.photos.map((p: any) => `<img src="${p.data_url}" style="width:160px;height:120px;object-fit:cover;border:1px solid #ddd;" />`).join("")}</div>`
+      : "";
+    const workHtml = report.work_items?.length
+      ? `<table style="width:100%;border-collapse:collapse;margin-bottom:12px;"><thead><tr style="background:#f5f5f5;"><th style="border:1px solid #ccc;padding:8px;text-align:left;width:8%;font-size:11pt;">No.</th><th style="border:1px solid #ccc;padding:8px;text-align:left;font-size:11pt;">作業内容</th></tr></thead><tbody>${report.work_items.map((w: any, i: number) => `<tr><td style="border:1px solid #ccc;padding:8px;font-size:10pt;">${i + 1}</td><td style="border:1px solid #ccc;padding:8px;font-size:10pt;">${w.description}</td></tr>`).join("")}</tbody></table>`
+      : "<p style='font-size:10pt;'>—</p>";
+    pdfDiv.innerHTML = `
+      <h1 style="font-size:20pt;font-weight:bold;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:12px;">${report.site_name ? `現場：${report.site_name}` : "日報"}</h1>
+      <div style="display:flex;gap:20px;font-size:10pt;color:#555;margin-bottom:12px;">
+        <span>日付：${report.report_date}</span>
+        <span>報告者：${author}</span>
+        <span>天気：${weatherStr}</span>
+        <span>人員：${report.labor_count != null ? `${report.labor_count}人` : "—"}</span>
+      </div>
+      <h2 style="font-size:14pt;font-weight:bold;border-bottom:1px solid #999;padding-bottom:4px;margin-top:16px;margin-bottom:8px;">作業内容</h2>
+      ${workHtml}
+      <h2 style="font-size:14pt;font-weight:bold;border-bottom:1px solid #999;padding-bottom:4px;margin-top:16px;margin-bottom:8px;">使用材料</h2>
+      <p style="margin-bottom:12px;font-size:10pt;">${materialsStr}</p>
+      <h2 style="font-size:14pt;font-weight:bold;border-bottom:1px solid #999;padding-bottom:4px;margin-top:16px;margin-bottom:8px;">備考</h2>
+      <div style="border:1px solid #ccc;padding:8px;min-height:40px;font-size:10pt;">${report.remarks || "—"}</div>
+      ${report.photos?.length ? `<h2 style="font-size:14pt;font-weight:bold;border-bottom:1px solid #999;padding-bottom:4px;margin-top:16px;margin-bottom:8px;">現場写真</h2>${photosHtml}` : ""}
+      <div style="margin-top:24px;padding-top:4px;border-top:1px solid #ccc;font-size:8pt;color:#999;text-align:center;">作成日時: ${new Date(savedAt).toLocaleString("ja-JP")}</div>
+    `;
+    document.body.appendChild(pdfDiv);
+    try {
+      const canvas = await html2canvas(pdfDiv, { scale: 2, useCORS: true, logging: false });
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfW = 210;
+      const pdfH = 297;
+      const margin = 15;
+      const usableW = pdfW - margin * 2;
+      const usableH = pdfH - margin * 2;
+      const imgAspect = canvas.width / canvas.height;
+      let renderW = usableW;
+      let renderH = usableW / imgAspect;
+      if (renderH > usableH) {
+        renderH = usableH;
+        renderW = usableH * imgAspect;
+      }
+      const offsetX = (pdfW - renderW) / 2;
+      const offsetY = (pdfH - renderH) / 2;
+      pdf.addImage(imgData, "JPEG", offsetX, offsetY, renderW, renderH);
+      pdf.save(`日報_${report.report_date}_${report.site_name || "現場"}.pdf`);
+    } catch (e) {
+      console.error(e);
+      alert("PDFの生成に失敗しました");
+    } finally {
+      document.body.removeChild(pdfDiv);
+    }
+  }, []);
+
+  // === テンプレート保存 ===
+  const saveAsTemplate = useCallback(() => {
+    if (!report) return;
+    const name = prompt("テンプレート名を入力してください", report.site_name || "テンプレート");
+    if (!name) return;
+    const newTemplate: Template = {
+      id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+      name,
+      site_name: report.site_name || "",
+      materials: report.materials.map((m) => ({ name: m.name, quantity: m.quantity, unit: m.unit })),
+      work_items: report.work_items.map((w) => ({ description: w.description })),
+      created_at: new Date().toISOString(),
+    };
+    const next = [newTemplate, ...templates].slice(0, 20);
+    setTemplates(next);
+    saveTemplatesToDisk(next);
+  }, [report, templates]);
+
+  // === テンプレート読み込み ===
+  const loadTemplate = useCallback((t: Template) => {
+    if (!report) return;
+    updateReport({
+      site_name: t.site_name,
+      materials: t.materials.map((m) => ({ name: m.name, quantity: m.quantity, unit: m.unit })),
+      work_items: t.work_items.map((w) => ({ description: w.description })),
+    });
+    if (t.site_name) setSiteHint(t.site_name);
+    setShowTemplateDropdown(false);
+  }, [report]);
+
+  // === テンプレート削除 ===
+  const deleteTemplate = useCallback((id: string) => {
+    const next = templates.filter((t) => t.id !== id);
+    setTemplates(next);
+    saveTemplatesToDisk(next);
+  }, [templates]);
+
   const updateReport = (patch: Partial<DailyReport>) => {
     setReport((r) => (r ? { ...r, ...patch } : r));
   };
@@ -595,6 +728,45 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               <input className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-700" placeholder="例：山田太郎" value={authorName} onChange={(e) => setAuthorName(e.target.value)} />
             </div>
           </section>
+
+          {/* テンプレート読み込み */}
+          {templates.length > 0 && step !== "review" && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+                className="flex items-center gap-2 rounded-2xl border border-emerald-700/50 bg-emerald-900/20 px-4 py-2.5 text-sm font-bold text-emerald-300 hover:bg-emerald-800/30 active:scale-[0.98] transition-all"
+              >
+                <span>📋</span>
+                テンプレートから読み込む
+                <span className="text-[10px] text-emerald-500/60">（{templates.length}件）</span>
+              </button>
+              {showTemplateDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl max-h-60 overflow-y-auto">
+                  {templates.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between px-3 py-2.5 border-b border-slate-800 last:border-b-0">
+                      <button
+                        type="button"
+                        className="flex-1 text-left text-sm text-slate-200 hover:text-emerald-300 transition-colors"
+                        onClick={() => loadTemplate(t)}
+                      >
+                        <span className="font-bold">{t.name}</span>
+                        <span className="text-[10px] text-slate-500 ml-2">{t.site_name}</span>
+                        <span className="text-[10px] text-slate-600 ml-2">{new Date(t.created_at).toLocaleDateString("ja-JP")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteTemplate(t.id)}
+                        className="text-[10px] text-red-400/60 hover:text-red-400 ml-2 shrink-0"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {step !== "review" && (
             <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -775,10 +947,12 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <button type="button" onClick={saveToLocal} disabled={saving} className="rounded-2xl bg-amber-500 py-4 text-sm font-bold text-slate-950 shadow-lg hover:bg-amber-400 active:scale-[0.98] transition-all">保存する</button>
                 <button type="button" onClick={() => { setStep("input"); setReport(null); }} className="rounded-2xl border border-slate-700 bg-slate-800 py-4 text-sm font-bold text-white hover:bg-slate-700 active:scale-[0.98] transition-all">やり直す</button>
                 <button type="button" onClick={() => printReport(report, authorName, new Date().toISOString())} className="rounded-2xl border border-blue-700/50 bg-blue-900/30 py-4 text-sm font-bold text-blue-300 hover:bg-blue-800/40 active:scale-[0.98] transition-all">印刷する</button>
+                <button type="button" onClick={() => downloadPdf(report, authorName, new Date().toISOString())} className="rounded-2xl border border-rose-700/50 bg-rose-900/30 py-4 text-sm font-bold text-rose-300 hover:bg-rose-800/40 active:scale-[0.98] transition-all">📄 PDF出力</button>
+                <button type="button" onClick={saveAsTemplate} className="rounded-2xl border border-emerald-700/50 bg-emerald-900/30 py-4 text-sm font-bold text-emerald-300 hover:bg-emerald-800/40 active:scale-[0.98] transition-all">📋 テンプレート保存</button>
                 <button type="button" onClick={() => { setStep("input"); setTranscript(""); setReport(null); setPhotos([]); }} className="rounded-2xl border border-slate-700 bg-slate-800/50 py-4 text-sm font-bold text-slate-400 hover:bg-slate-700 active:scale-[0.98] transition-all">最初から</button>
               </div>
             </section>
@@ -837,7 +1011,102 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
             </button>
           </div>
 
-          {historyViewMode === "list" ? (
+          {siteProgress ? (
+            /* ===== 現場進捗タイムライン ===== */
+            <div className="space-y-4 animate-in fade-in duration-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">現場進捗 タイムライン</h2>
+                  <h3 className="text-lg font-bold text-amber-400 mt-1">{siteProgress}</h3>
+                </div>
+                <button
+                  onClick={() => setSiteProgress(null)}
+                  className="flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-slate-700 transition-all"
+                >
+                  ← 一覧に戻る
+                </button>
+              </div>
+
+              {(() => {
+                const siteReports = filteredHistory
+                  .filter((h) => h.payload?.site_name === siteProgress)
+                  .sort((a, b) => a.report_date.localeCompare(b.report_date));
+                if (siteReports.length === 0) {
+                  return <p className="text-center py-10 text-slate-600 text-sm">該当する日報はありません</p>;
+                }
+                const totalLabor = siteReports.reduce((s, h) => s + (h.payload?.labor_count ?? 0), 0);
+                const dateRange = siteReports.length === 1
+                  ? siteReports[0].report_date
+                  : `${siteReports[0].report_date} 〜 ${siteReports[siteReports.length - 1].report_date}`;
+                const uniqueAuthors = new Set(siteReports.map((h) => h.author_name).filter(Boolean)).size;
+                return (
+                  <>
+                    {/* サマリー */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">報告件数</p>
+                        <p className="text-2xl font-bold text-white">{siteReports.length}</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">期間</p>
+                        <p className="text-xs font-bold text-white leading-tight">{dateRange}</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">報告者</p>
+                        <p className="text-2xl font-bold text-white">{uniqueAuthors}人</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500">延べ人員: {totalLabor}人 / 平均: {siteReports.length > 0 ? Math.round(totalLabor / siteReports.length) : 0}人/日</p>
+
+                    {/* タイムライン */}
+                    <div className="relative space-y-0">
+                      {siteReports.map((h, idx) => {
+                        const prevDate = idx > 0 ? siteReports[idx - 1].report_date : null;
+                        const showDateSeparator = !prevDate || prevDate !== h.report_date;
+                        return (
+                          <div key={h.id} className="relative flex gap-4 pb-6">
+                            {/* タイムライン線 */}
+                            <div className="flex flex-col items-center">
+                              <div className="w-3 h-3 rounded-full bg-amber-500/60 border-2 border-amber-500 z-10 shrink-0" />
+                              {idx < siteReports.length - 1 && (
+                                <div className="w-0.5 flex-1 bg-gradient-to-b from-amber-500/40 to-transparent mt-1" />
+                              )}
+                            </div>
+                            {/* カード */}
+                            <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-900/40 p-4 hover:bg-slate-800/60 transition-all">
+                              <div className="flex justify-between items-start mb-1">
+                                <div>
+                                  {showDateSeparator && (
+                                    <span className="text-[10px] font-bold text-amber-500/80">{h.report_date}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-bold text-slate-500">{h.author_name}</span>
+                                  <button
+                                    onClick={() => setSelectedHistory(h)}
+                                    className="text-[10px] text-blue-400/60 hover:text-blue-400 transition-colors"
+                                  >
+                                    詳細
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-xs text-slate-400 line-clamp-2 mt-1">
+                                {h.payload?.weather && `☁️ ${h.payload.weather}`}
+                                {h.payload?.labor_count != null && ` 👤${h.payload.labor_count}人`}
+                              </p>
+                              {h.payload?.work_items?.[0]?.description && (
+                                <p className="text-xs text-slate-500 mt-1 line-clamp-2">{h.payload.work_items[0].description}</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          ) : historyViewMode === "list" ? (
             /* ===== 一覧表示 ===== */
             <div className="space-y-3">
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
@@ -869,6 +1138,20 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                       <h3 className="text-sm font-bold text-slate-200">{h.payload?.site_name || "現場名なし"}</h3>
                       <p className="text-xs text-slate-500 line-clamp-1">{h.payload?.work_items?.[0]?.description || "内容なし"}</p>
                     </button>
+                    {h.payload?.site_name && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSiteProgress(h.payload!.site_name!);
+                        }}
+                        className="mt-2 text-[10px] font-bold text-amber-400/60 hover:text-amber-400 transition-colors flex items-center gap-1"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                        この現場の全履歴を見る
+                      </button>
+                    )}
                   </div>
                 ))
               ) : (
@@ -1170,6 +1453,29 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                   </svg>
                 </button>
+                <button
+                  onClick={() => {
+                    if (selectedHistory.payload) {
+                      downloadPdf(selectedHistory.payload, selectedHistory.author_name, selectedHistory.saved_at);
+                    }
+                  }}
+                  className="p-2 rounded-xl bg-rose-900/30 text-rose-400 hover:bg-rose-800/40 transition-all text-xs font-bold"
+                  title="PDF出力"
+                >
+                  📄
+                </button>
+                {selectedHistory.payload?.site_name && (
+                  <button
+                    onClick={() => {
+                      const site = selectedHistory.payload!.site_name!;
+                      setSelectedHistory(null);
+                      setSiteProgress(site);
+                    }}
+                    className="text-[10px] font-bold text-amber-400/60 hover:text-amber-400 transition-colors"
+                  >
+                    現場履歴
+                  </button>
+                )}
                 <button onClick={() => setSelectedHistory(null)} className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:bg-slate-700 transition-all">閉じる</button>
               </div>
             </div>
