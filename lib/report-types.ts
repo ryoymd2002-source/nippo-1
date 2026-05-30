@@ -14,9 +14,10 @@ export interface MaterialEntry {
 
 export interface PhotoEntry {
   id: string;
-  data_url: string; // base64 data URL
+  data_url: string;      // base64 data URL（アップロード後は空になる）
+  storage_url?: string;   // Supabase Storage の公開URL（アップロード後に設定）
   caption: string;
-  taken_at: string; // ISO timestamp
+  taken_at: string;      // ISO timestamp
 }
 
 export interface DailyReport {

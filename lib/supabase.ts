@@ -83,3 +83,52 @@ export const supabaseApi = {
     });
   },
 };
+
+// ===== Supabase Storage API（写真ファイル用） =====
+
+/** Base64データURLを Supabase Storage にアップロードし、公開URLを返す */
+export async function uploadPhotoToStorage(
+  base64DataUrl: string,
+  reportId: string,
+  index: number,
+): Promise<string> {
+  const fileName = `${reportId}/${Date.now()}-${index}.jpg`;
+
+  // base64 → Blob 変換（fetch で dataURL をバイナリに変換）
+  const res = await fetch(base64DataUrl);
+  const blob = await res.blob();
+
+  const url = `${SB_URL}/storage/v1/object/report-photos/${fileName}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${SB_ANON_KEY}`,
+      "Content-Type": blob.type || "application/octet-stream",
+    },
+    body: blob,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`写真のアップロードに失敗しました: ${text}`);
+  }
+
+  // 公開URLを返す
+  return `${SB_URL}/storage/v1/object/public/report-photos/${fileName}`;
+}
+
+/** Storage 上の画像ファイルを削除 */
+export async function deletePhotoFromStorage(storageUrl: string): Promise<void> {
+  // URLからパスを抽出: ".../report-photos/abc-123/0.jpg" → "abc-123/0.jpg"
+  const path = storageUrl.split("/report-photos/")[1];
+  if (!path) return;
+
+  const response = await fetch(`${SB_URL}/storage/v1/object/report-photos/${path}`, {
+    method: "DELETE",
+    headers: { "Authorization": `Bearer ${SB_ANON_KEY}` },
+  });
+
+  if (!response.ok) {
+    console.warn(`Storage写真の削除に失敗: ${path} (${response.status})`);
+  }
+}

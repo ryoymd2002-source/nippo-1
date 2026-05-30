@@ -6,8 +6,8 @@
  * Supabaseが使えない場合はlocalStorageでフォールバックします。
  */
 
-import type { DailyReport } from "./report-types";
-import { supabaseApi } from "./supabase";
+import type { DailyReport, PhotoEntry } from "./report-types";
+import { supabaseApi, deletePhotoFromStorage } from "./supabase";
 
 export interface StoredReport {
   id: string;
@@ -136,17 +136,36 @@ export const storageApi = {
     return getLocalReports();
   },
 
-  /** 日報を削除（Supabase + localStorage） */
+  /** 日報を削除（Supabase + localStorage + Storage写真） */
   async deleteReport(id: string): Promise<void> {
+    // 削除前に写真のStorage URLを取得
+    const allReports = getLocalReports();
+    const target = allReports.find((r) => r.id === id);
+    const storageUrls: string[] = [];
+    if (target?.payload?.photos) {
+      for (const photo of target.payload.photos as PhotoEntry[]) {
+        if (photo.storage_url) storageUrls.push(photo.storage_url);
+      }
+    }
+
     // localStorage から削除
-    const localReports = getLocalReports().filter((r) => r.id !== id);
+    const localReports = allReports.filter((r) => r.id !== id);
     saveLocalReports(localReports);
 
-    // Supabase から削除
+    // Supabase DB から削除
     try {
       await supabaseApi.deleteReport(id);
     } catch (e) {
       console.warn("Supabaseからの削除に失敗しました（localStorageのみ削除）:", e);
+    }
+
+    // Storage の画像ファイルを削除
+    for (const url of storageUrls) {
+      try {
+        await deletePhotoFromStorage(url);
+      } catch (e) {
+        console.warn("Storage写真の削除に失敗しました:", e);
+      }
     }
   },
 

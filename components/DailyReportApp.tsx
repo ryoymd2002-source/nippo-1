@@ -5,8 +5,13 @@ import type { DailyReport, PhotoEntry } from "@/lib/report-types";
 import { reportToCsv, csvHeader } from "@/lib/csv-export";
 import { storageApi, StoredReport } from "@/lib/storage";
 import { fetchWeather } from "@/lib/weather";
+import { uploadPhotoToStorage } from "@/lib/supabase";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
 
 type AppTab = "create" | "history" | "gallery" | "dashboard";
 type Step = "input" | "voice" | "review";
@@ -321,6 +326,25 @@ export default function DailyReportApp() {
       // 現場名を保存済みリストに追加
       if (report.site_name) {
         saveSiteName(report.site_name);
+      }
+
+      // 写真をクラウドストレージにアップロード（base64 → Storage URL）
+      if (report.photos && report.photos.length > 0) {
+        const tmpId = `tmp-${Date.now()}`;
+        for (let i = 0; i < report.photos.length; i++) {
+          const photo = report.photos[i];
+          // data_url が存在し、まだ storage_url がない場合のみアップロード
+          if (photo.data_url && !photo.storage_url) {
+            try {
+              const url = await uploadPhotoToStorage(photo.data_url, tmpId, i);
+              photo.storage_url = url;
+              photo.data_url = ""; // DB肥大化防止のため base64 をクリア
+            } catch (e) {
+              console.warn(`写真${i}のアップロードに失敗しました（base64のまま保存）:`, e);
+              // アップロード失敗時は base64 のまま保存（フォールバック）
+            }
+          }
+        }
       }
 
       await storageApi.saveReport({
@@ -660,18 +684,41 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
   });
   const maxReportsPerDay = Math.max(...Array.from(reportsPerDay.values()), 1);
 
+  // recharts用データ
+  const chartWeatherData = ["晴", "曇", "雨", "雪"]
+    .map((w) => ({ name: w, value: dashboardStats.weatherCounts.get(w) ?? 0 }))
+    .filter((d) => d.value > 0);
+  const chartSiteData = topSites.map(([site, count]) => ({ name: site, 報告数: count }));
+  const chartDailyData = Array.from(reportsPerDay.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, count]) => ({ date: date.slice(-5), 報告数: count }));
+  const CHART_COLORS = ["#818cf8", "#10b981", "#f59e0b", "#f472b6", "#a78bfa", "#34d399", "#fb923c"];
+  const PIE_COLORS = ["#818cf8", "#f59e0b", "#60a5fa", "#e2e8f0"];
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-4 px-4 pb-28 pt-4 sm:max-w-2xl sm:px-6 lg:max-w-3xl">
       <header className="flex items-center justify-between flex-wrap gap-2">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400">Daily Report</p>
-          <h1 className="text-2xl font-bold tracking-tight text-white">日報アプリ <span className="text-amber-500 text-lg">PRO</span></h1>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] gradient-text-indigo">Daily Report</p>
+          <h1 className="text-2xl font-bold tracking-tight text-white">日報アプリ <span className="gradient-text text-lg">PRO</span></h1>
         </div>
         <div className="flex bg-slate-900/80 p-1 rounded-xl border border-slate-800">
-          <button onClick={() => setTab("create")} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "create" ? "bg-amber-500 text-slate-950 shadow-lg" : "text-slate-400"}`}>作成</button>
-          <button onClick={() => setTab("history")} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "history" ? "bg-amber-500 text-slate-950 shadow-lg" : "text-slate-400"}`}>履歴</button>
-          <button onClick={() => setTab("gallery")} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "gallery" ? "bg-amber-500 text-slate-950 shadow-lg" : "text-slate-400"}`}>📷 写真</button>
-          <button onClick={() => { setTab("dashboard"); }} className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "dashboard" ? "bg-amber-500 text-slate-950 shadow-lg" : "text-slate-400"}`}>📊 集計</button>
+          <button onClick={() => setTab("create")} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "create" ? "bg-gradient-to-r from-primary-400 to-primary-500 text-white shadow-lg shadow-primary-500/20" : "text-slate-400 hover:text-slate-300"}`}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            作成
+          </button>
+          <button onClick={() => setTab("history")} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "history" ? "bg-gradient-to-r from-primary-400 to-primary-500 text-white shadow-lg shadow-primary-500/20" : "text-slate-400 hover:text-slate-300"}`}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            履歴
+          </button>
+          <button onClick={() => setTab("gallery")} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "gallery" ? "bg-gradient-to-r from-primary-400 to-primary-500 text-white shadow-lg shadow-primary-500/20" : "text-slate-400 hover:text-slate-300"}`}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            写真
+          </button>
+          <button onClick={() => { setTab("dashboard"); }} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${tab === "dashboard" ? "bg-gradient-to-r from-primary-400 to-primary-500 text-white shadow-lg shadow-primary-500/20" : "text-slate-400 hover:text-slate-300"}`}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+            集計
+          </button>
         </div>
       </header>
 
@@ -692,7 +739,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
       {tab === "create" ? (
         <>
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="relative rounded-2xl border border-slate-800 bg-slate-900/60 p-3 shadow-xl backdrop-blur-md" ref={siteDropdownRef}>
+            <div className="relative glass-card rounded-2xl p-3" ref={siteDropdownRef}>
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">現場名ヒント</label>
               <input
                 ref={siteInputRef}
@@ -710,7 +757,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                       <button
                         key={s}
                         type="button"
-                        className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-amber-500/10 hover:text-amber-300 transition-colors border-b border-slate-800 last:border-b-0"
+                        className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-primary-400/10 hover:text-primary-300 transition-colors border-b border-slate-800 last:border-b-0"
                         onClick={() => { setSiteHint(s); setShowSiteDropdown(false); }}
                       >
                         {s}
@@ -719,11 +766,11 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                 </div>
               )}
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 shadow-xl backdrop-blur-md">
+            <div className="glass-card rounded-2xl p-3">
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">報告日</label>
               <input type="date" className="w-full bg-transparent text-sm text-white outline-none [color-scheme:dark]" value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 shadow-xl backdrop-blur-md">
+            <div className="glass-card rounded-2xl p-3">
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">報告者氏名</label>
               <input className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-700" placeholder="例：山田太郎" value={authorName} onChange={(e) => setAuthorName(e.target.value)} />
             </div>
@@ -735,7 +782,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               <button
                 type="button"
                 onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
-                className="flex items-center gap-2 rounded-2xl border border-emerald-700/50 bg-emerald-900/20 px-4 py-2.5 text-sm font-bold text-emerald-300 hover:bg-emerald-800/30 active:scale-[0.98] transition-all"
+                className="flex items-center gap-2 glass-card rounded-2xl px-4 py-2.5 text-sm font-bold text-emerald-300 hover:bg-white/5 active:scale-[0.98] transition-all"
               >
                 <span>📋</span>
                 テンプレートから読み込む
@@ -771,7 +818,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
           {step !== "review" && (
             <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* 音声認識ボタン（録音機能なし） */}
-              <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-1 flex">
+              <div className="glass-card rounded-3xl p-1 flex">
                 <button
                   type="button"
                   onClick={() => (listening ? stopSpeech() : startSpeech())}
@@ -779,7 +826,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                   className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-4 text-sm font-bold transition-all ${
                     listening
                       ? "bg-red-500 text-white shadow-lg shadow-red-500/20"
-                      : "text-slate-300 hover:bg-slate-800"
+                      : "text-slate-300 hover:bg-white/10"
                   } disabled:opacity-20`}
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -790,7 +837,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               </div>
 
               <textarea
-                className="w-full min-h-[200px] rounded-3xl border border-slate-800 bg-slate-950/50 p-5 text-base text-white outline-none ring-amber-500/20 focus:ring-4 transition-all"
+                className="w-full min-h-[200px] rounded-3xl border border-slate-800 bg-slate-950/50 p-5 text-base text-white outline-none ring-primary-400/20 focus:ring-4 focus:border-primary-400/50 transition-all"
                 placeholder="例：A現場で9時からボード貼り。昼にビス1箱追加。17時終了。&#10;&#10;※ 音声入力を使用するか、直接入力してください"
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
@@ -802,7 +849,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                   <button
                     type="button"
                     onClick={handleAddPhoto}
-                    className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/50 px-4 py-2.5 text-sm font-bold text-slate-300 hover:bg-slate-700 active:scale-[0.98] transition-all"
+                    className="flex items-center gap-2 glass-card rounded-2xl px-4 py-2.5 text-sm font-bold text-slate-300 hover:bg-white/5 active:scale-[0.98] transition-all"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -825,8 +872,8 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                 {photos.length > 0 && (
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {photos.map((p) => (
-                      <div key={p.id} className="relative group aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900">
-                        <img src={p.data_url} alt="現場写真" className="w-full h-full object-cover" />
+                      <div key={p.id} className="relative group aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900 hover:border-primary-400/30 transition-all">
+                        <img src={p.data_url} alt="現場写真" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         <button
                           type="button"
                           onClick={() => removePhoto(p.id)}
@@ -844,7 +891,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                 type="button"
                 onClick={runStructure}
                 disabled={structuring || !transcript.trim()}
-                className="w-full rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 py-4 text-base font-bold text-white shadow-lg shadow-emerald-900/20 hover:from-emerald-400 hover:to-teal-500 active:scale-[0.98] disabled:opacity-30 transition-all"
+                className="w-full rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 py-4 text-base font-bold text-white shadow-lg shadow-emerald-900/20 hover:from-emerald-400 hover:to-teal-500 hover:shadow-emerald-500/20 active:scale-[0.98] disabled:opacity-30 transition-all"
               >
                 {structuring ? (
                   <span className="flex items-center justify-center gap-2">
@@ -861,7 +908,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
 
           {step === "review" && report && (
             <section className="space-y-4 animate-in fade-in zoom-in-95 duration-300 pb-10">
-              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 space-y-4 shadow-2xl">
+              <div className="glass-card rounded-3xl p-5 space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="現場名" value={report.site_name} onChange={(v) => updateReport({ site_name: v })} />
                   <Field label="天気" value={`${report.weather ?? ""}${report.temperature_c ? ` (${report.temperature_c}℃)` : ""}`} onChange={(v) => updateReport({ weather: v as any })} />
@@ -870,7 +917,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">人員数</label>
                   <input
                     type="number"
-                    className="w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/50 transition-all"
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none focus:border-primary-400/50 transition-all"
                     value={report.labor_count ?? ""}
                     placeholder="例：5"
                     onChange={(e) => updateReport({ labor_count: e.target.value ? parseInt(e.target.value) : null })}
@@ -880,12 +927,12 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">使用材料</label>
                   {report.materials.map((m, i) => (
                     <div key={i} className="grid grid-cols-3 gap-2 mb-2">
-                      <input className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-white outline-none focus:border-amber-500/50 transition-all col-span-2" value={m.name} onChange={(e) => {
+                      <input className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-white outline-none focus:border-primary-400/50 transition-all col-span-2" value={m.name} onChange={(e) => {
                         const next = [...report.materials];
                         next[i] = { ...m, name: e.target.value };
                         updateReport({ materials: next });
                       }} placeholder="材料名" />
-                      <input className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-white outline-none focus:border-amber-500/50 transition-all" value={m.quantity ? `${m.quantity}${m.unit ?? ""}` : ""} onChange={(e) => {
+                      <input className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-white outline-none focus:border-primary-400/50 transition-all" value={m.quantity ? `${m.quantity}${m.unit ?? ""}` : ""} onChange={(e) => {
                         const next = [...report.materials];
                         const match = e.target.value.match(/([\d.]+)\s*(\D*)/);
                         next[i] = { ...m, quantity: match ? parseFloat(match[1]) : null, unit: match?.[2] || null };
@@ -896,7 +943,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                   <button
                     type="button"
                     onClick={() => updateReport({ materials: [...report.materials, { name: "", quantity: null, unit: null }] })}
-                    className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                    className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
                   >
                     + 材料を追加
                   </button>
@@ -904,7 +951,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">主要な作業内容</label>
                   {report.work_items.map((w, i) => (
-                    <div key={i} className="mb-2 rounded-2xl bg-slate-950/50 border border-slate-800 p-3">
+                    <div key={i} className="mb-2 glass-card rounded-2xl p-3">
                       <textarea className="w-full bg-transparent text-sm text-slate-200 outline-none resize-none" value={w.description} onChange={(e) => {
                         const next = [...report.work_items];
                         next[i] = { ...w, description: e.target.value };
@@ -916,7 +963,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">備考</label>
                   <textarea
-                    className="w-full rounded-2xl border border-slate-800 bg-slate-950/50 p-3 text-sm text-white outline-none focus:border-amber-500/50 transition-all resize-none"
+                    className="w-full rounded-2xl border border-slate-800 bg-slate-950/50 p-3 text-sm text-white outline-none focus:border-primary-400/50 transition-all resize-none"
                     rows={3}
                     value={report.remarks ?? ""}
                     placeholder="特記事項があれば入力"
@@ -928,8 +975,8 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">現場写真</label>
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                       {report.photos.map((p: any) => (
-                        <div key={p.id} className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900">
-                          <img src={p.data_url} alt="現場写真" className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(p.data_url, "_blank")} />
+                        <div key={p.id} className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900 hover:border-primary-400/30 transition-all group">
+                          <img src={p.storage_url || p.data_url} alt="現場写真" className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-300" onClick={() => window.open(p.storage_url || p.data_url, "_blank")} />
                         </div>
                       ))}
                     </div>
@@ -948,7 +995,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <button type="button" onClick={saveToLocal} disabled={saving} className="rounded-2xl bg-amber-500 py-4 text-sm font-bold text-slate-950 shadow-lg hover:bg-amber-400 active:scale-[0.98] transition-all">保存する</button>
+                <button type="button" onClick={saveToLocal} disabled={saving} className="rounded-2xl bg-gradient-to-r from-primary-400 to-primary-500 py-4 text-sm font-bold text-white shadow-lg shadow-primary-500/20 hover:from-primary-300 hover:to-primary-400 active:scale-[0.98] transition-all disabled:opacity-30">保存する</button>
                 <button type="button" onClick={() => { setStep("input"); setReport(null); }} className="rounded-2xl border border-slate-700 bg-slate-800 py-4 text-sm font-bold text-white hover:bg-slate-700 active:scale-[0.98] transition-all">やり直す</button>
                 <button type="button" onClick={() => printReport(report, authorName, new Date().toISOString())} className="rounded-2xl border border-blue-700/50 bg-blue-900/30 py-4 text-sm font-bold text-blue-300 hover:bg-blue-800/40 active:scale-[0.98] transition-all">印刷する</button>
                 <button type="button" onClick={() => downloadPdf(report, authorName, new Date().toISOString())} className="rounded-2xl border border-rose-700/50 bg-rose-900/30 py-4 text-sm font-bold text-rose-300 hover:bg-rose-800/40 active:scale-[0.98] transition-all">📄 PDF出力</button>
@@ -960,22 +1007,22 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
         </>
       ) : tab === "history" ? (
         <section className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 space-y-4 shadow-xl">
+          <div className="glass-card rounded-3xl p-5 space-y-4">
             <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">絞り込みと出力</h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="text-[10px] text-slate-500 block mb-1">開始日</label>
-                <input type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white [color-scheme:dark]" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <input type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white outline-none focus:border-primary-400/50 transition-all [color-scheme:dark]" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
               <div>
                 <label className="text-[10px] text-slate-500 block mb-1">終了日</label>
-                <input type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white [color-scheme:dark]" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                <input type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white outline-none focus:border-primary-400/50 transition-all [color-scheme:dark]" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             </div>
             <div>
               <label className="text-[10px] text-slate-500 block mb-1">報告者フィルター</label>
               <select
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-amber-500/50 transition-all"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-primary-400/50 transition-all"
                 value={authorFilter}
                 onChange={(e) => setAuthorFilter(e.target.value)}
               >
@@ -987,10 +1034,10 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
             </div>
             <div>
               <label className="text-[10px] text-slate-500 block mb-1">キーワード検索 (現場名・作業員・内容)</label>
-              <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-amber-500/50 transition-all" placeholder="キーワードを入力..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-primary-400/50 transition-all" placeholder="キーワードを入力..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button onClick={downloadRangeCsv} className="w-full bg-white text-slate-900 py-3 rounded-2xl text-sm font-bold hover:bg-slate-200 active:scale-[0.98] transition-all">表示中のデータをCSV出力</button>
+              <button onClick={downloadRangeCsv} className="w-full bg-gradient-to-r from-primary-400 to-primary-500 text-white py-3 rounded-2xl text-sm font-bold shadow-lg shadow-primary-500/20 hover:from-primary-300 hover:to-primary-400 active:scale-[0.98] transition-all">表示中のデータをCSV出力</button>
               <button onClick={downloadBackup} className="w-full border border-slate-700 text-slate-300 py-3 rounded-2xl text-sm font-bold hover:bg-slate-800 active:scale-[0.98] transition-all">全データをJSONバックアップ</button>
             </div>
           </div>
@@ -999,15 +1046,17 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
           <div className="flex gap-1 p-1 rounded-xl border border-slate-800 bg-slate-900/40 self-start">
             <button
               onClick={() => setHistoryViewMode("list")}
-              className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all ${historyViewMode === "list" ? "bg-amber-500/20 text-amber-400" : "text-slate-500 hover:text-slate-300"}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all ${historyViewMode === "list" ? "bg-primary-400/20 text-primary-300" : "text-slate-500 hover:text-slate-300"}`}
             >
-              📋 一覧
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+              一覧
             </button>
             <button
               onClick={() => setHistoryViewMode("calendar")}
-              className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all ${historyViewMode === "calendar" ? "bg-amber-500/20 text-amber-400" : "text-slate-500 hover:text-slate-300"}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all ${historyViewMode === "calendar" ? "bg-primary-400/20 text-primary-300" : "text-slate-500 hover:text-slate-300"}`}
             >
-              📅 カレンダー
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              カレンダー
             </button>
           </div>
 
@@ -1017,7 +1066,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">現場進捗 タイムライン</h2>
-                  <h3 className="text-lg font-bold text-amber-400 mt-1">{siteProgress}</h3>
+                  <h3 className="text-lg font-bold gradient-text-indigo mt-1">{siteProgress}</h3>
                 </div>
                 <button
                   onClick={() => setSiteProgress(null)}
@@ -1043,15 +1092,15 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                   <>
                     {/* サマリー */}
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+                      <div className="glass-card rounded-2xl p-4">
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">報告件数</p>
                         <p className="text-2xl font-bold text-white">{siteReports.length}</p>
                       </div>
-                      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+                      <div className="glass-card rounded-2xl p-4">
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">期間</p>
                         <p className="text-xs font-bold text-white leading-tight">{dateRange}</p>
                       </div>
-                      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+                      <div className="glass-card rounded-2xl p-4">
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">報告者</p>
                         <p className="text-2xl font-bold text-white">{uniqueAuthors}人</p>
                       </div>
@@ -1067,17 +1116,17 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                           <div key={h.id} className="relative flex gap-4 pb-6">
                             {/* タイムライン線 */}
                             <div className="flex flex-col items-center">
-                              <div className="w-3 h-3 rounded-full bg-amber-500/60 border-2 border-amber-500 z-10 shrink-0" />
+                              <div className="w-3 h-3 rounded-full bg-primary-400/60 border-2 border-primary-400 z-10 shrink-0" />
                               {idx < siteReports.length - 1 && (
-                                <div className="w-0.5 flex-1 bg-gradient-to-b from-amber-500/40 to-transparent mt-1" />
+                                <div className="w-0.5 flex-1 bg-gradient-to-b from-primary-400/40 to-transparent mt-1" />
                               )}
                             </div>
                             {/* カード */}
-                            <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-900/40 p-4 hover:bg-slate-800/60 transition-all">
+                            <div className="flex-1 glass-card rounded-2xl p-4 hover:bg-white/[0.03] transition-all">
                               <div className="flex justify-between items-start mb-1">
                                 <div>
                                   {showDateSeparator && (
-                                    <span className="text-[10px] font-bold text-amber-500/80">{h.report_date}</span>
+                                    <span className="text-[10px] font-bold text-primary-400/80">{h.report_date}</span>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -1117,9 +1166,11 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               </h2>
               {filteredHistory.length > 0 ? (
                 filteredHistory.map((h) => (
-                  <div key={h.id} className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 hover:bg-slate-800/60 transition-all">
+                  <div key={h.id} className="relative glass-card rounded-2xl p-4 pl-5 hover:bg-white/[0.03] transition-all group overflow-hidden">
+                    {/* アクセントバー */}
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary-400 to-primary-600 rounded-full opacity-60 group-hover:opacity-100 transition-opacity" />
                     <div className="flex justify-between items-start mb-1">
-                      <span className="text-[10px] font-bold text-amber-500/80">{h.report_date}</span>
+                      <span className="text-[10px] font-bold text-primary-400/80">{h.report_date}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-500">{formatSavedAt(h.saved_at)}</span>
                         <button
@@ -1144,7 +1195,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                           e.stopPropagation();
                           setSiteProgress(h.payload!.site_name!);
                         }}
-                        className="mt-2 text-[10px] font-bold text-amber-400/60 hover:text-amber-400 transition-colors flex items-center gap-1"
+                        className="mt-2 text-[10px] font-bold text-primary-400/60 hover:text-primary-400 transition-colors flex items-center gap-1"
                       >
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -1160,7 +1211,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
             </div>
           ) : (
             /* ===== カレンダー表示 ===== */
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl space-y-3">
+            <div className="glass-card rounded-3xl p-4 space-y-3">
               {/* 月移動 */}
               <div className="flex items-center justify-between">
                 <button
@@ -1203,13 +1254,13 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                       }}
                       className={`aspect-square rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all
                         ${cell.reports.length > 0
-                          ? "bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20"
+                          ? "bg-primary-400/10 border border-primary-400/30 text-primary-300 hover:bg-primary-400/20"
                           : "bg-slate-950/40 border border-slate-800/50 text-slate-600 hover:bg-slate-800/50"
                         }`}
                     >
                       <span>{cell.day}</span>
                       {cell.reports.length > 0 && (
-                        <span className="text-[8px] mt-0.5 text-amber-400/80">{cell.reports.length}件</span>
+                        <span className="text-[8px] mt-0.5 text-primary-400/80">{cell.reports.length}件</span>
                       )}
                     </button>
                   ) : (
@@ -1231,13 +1282,13 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
             <div className="flex gap-1 p-1 rounded-xl border border-slate-800 bg-slate-900/40">
               <button
                 onClick={() => setGalleryGroupBy("site")}
-                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${galleryGroupBy === "site" ? "bg-amber-500/20 text-amber-400" : "text-slate-500 hover:text-slate-300"}`}
+                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${galleryGroupBy === "site" ? "bg-primary-400/20 text-primary-300" : "text-slate-500 hover:text-slate-300"}`}
               >
                 現場別
               </button>
               <button
                 onClick={() => setGalleryGroupBy("date")}
-                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${galleryGroupBy === "date" ? "bg-amber-500/20 text-amber-400" : "text-slate-500 hover:text-slate-300"}`}
+                className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${galleryGroupBy === "date" ? "bg-primary-400/20 text-primary-300" : "text-slate-500 hover:text-slate-300"}`}
               >
                 日付別
               </button>
@@ -1254,15 +1305,15 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
           {galleryGroupBy === "site"
             ? Array.from(galleryBySite.entries()).map(([site, items]) => (
                 <div key={site} className="space-y-2">
-                  <h3 className="text-sm font-bold text-amber-400/90 px-1">{site}（{items.length}枚）</h3>
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-primary-300 px-1"><span className="accent-bar-indigo inline-block w-1 h-4 rounded-full" />{site}（{items.length}枚）</h3>
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {items.map(({ photo, report }) => (
                       <button
                         key={photo.id}
                         onClick={() => setLightboxPhoto({ photo, report })}
-                        className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900 hover:border-amber-500/50 transition-all group"
+                        className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900 hover:border-primary-400/50 transition-all group"
                       >
-                        <img src={photo.data_url} alt={photo.caption || "現場写真"} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <img src={photo.storage_url || photo.data_url} alt={photo.caption || "現場写真"} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       </button>
                     ))}
                   </div>
@@ -1270,15 +1321,15 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               ))
             : Array.from(galleryByDate.entries()).map(([date, items]) => (
                 <div key={date} className="space-y-2">
-                  <h3 className="text-sm font-bold text-amber-400/90 px-1">{date}（{items.length}枚）</h3>
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-primary-300 px-1"><span className="accent-bar-indigo inline-block w-1 h-4 rounded-full" />{date}（{items.length}枚）</h3>
                   <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {items.map(({ photo, report }) => (
                       <button
                         key={photo.id}
                         onClick={() => setLightboxPhoto({ photo, report })}
-                        className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900 hover:border-amber-500/50 transition-all group"
+                        className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900 hover:border-primary-400/50 transition-all group"
                       >
-                        <img src={photo.data_url} alt={photo.caption || "現場写真"} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <img src={photo.storage_url || photo.data_url} alt={photo.caption || "現場写真"} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       </button>
                     ))}
                   </div>
@@ -1300,95 +1351,98 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
 
           {/* 統計カード */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+            <div className="glass-card rounded-2xl p-4">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">報告件数</p>
               <p className="text-2xl font-bold text-white">{dashboardStats.totalReports}</p>
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+            <div className="glass-card rounded-2xl p-4">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">現場数</p>
               <p className="text-2xl font-bold text-white">{dashboardStats.uniqueSites}</p>
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+            <div className="glass-card rounded-2xl p-4">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">報告者数</p>
               <p className="text-2xl font-bold text-white">{dashboardStats.uniqueAuthors}</p>
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl">
+            <div className="glass-card rounded-2xl p-4">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">延べ人員</p>
               <p className="text-2xl font-bold text-white">{dashboardStats.totalLabor}</p>
             </div>
           </div>
 
-          {/* 天気内訳 */}
-          {dashboardStats.weatherCounts.size > 0 && (
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl">
+          {/* 天気内訳（PieChart） */}
+          {chartWeatherData.length > 0 && (
+            <div className="glass-card rounded-3xl p-5">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">天気内訳</h3>
-              <div className="flex flex-wrap gap-2">
-                {["晴", "曇", "雨", "雪"].map((w) => {
-                  const count = dashboardStats.weatherCounts.get(w) ?? 0;
-                  if (count === 0) return null;
-                  const pct = Math.round((count / dashboardStats.totalReports) * 100);
-                  return (
-                    <div key={w} className="flex-1 min-w-[60px] text-center">
-                      <div className="text-xl mb-1">
-                        {w === "晴" ? "☀️" : w === "曇" ? "☁️" : w === "雨" ? "🌧️" : "❄️"}
-                      </div>
-                      <p className="text-sm font-bold text-white">{count}件</p>
-                      <div className="w-full h-1.5 rounded-full bg-slate-800 mt-1 overflow-hidden">
-                        <div className="h-full rounded-full bg-amber-500/60" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* 現場別ランキング */}
-          {topSites.length > 0 && (
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">現場別 報告数 TOP5</h3>
-              <div className="space-y-2">
-                {topSites.map(([site, count], i) => {
-                  const pct = Math.round((count / dashboardStats.totalReports) * 100);
-                  return (
-                    <div key={site}>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-slate-300">
-                          <span className="text-amber-400 font-bold mr-1">#{i + 1}</span>
-                          {site}
-                        </span>
-                        <span className="text-slate-500">{count}件（{pct}%）</span>
-                      </div>
-                      <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                        <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* 日別報告数（棒グラフ） */}
-          {reportsPerDay.size > 0 && (
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">日別 報告数</h3>
-              <div className="flex items-end gap-1 overflow-x-auto pb-1">
-                {Array.from(reportsPerDay.entries()).sort().map(([date, count]) => (
-                  <div key={date} className="flex flex-col items-center gap-1 min-w-[28px]">
-                    <span className="text-[8px] text-slate-500">{count}</span>
-                    <div
-                      className="w-full rounded-t-md bg-amber-500/60 hover:bg-amber-500/80 transition-all"
-                      style={{
-                        height: `${Math.max(4, (count / maxReportsPerDay) * 60)}px`,
-                        minHeight: "4px",
-                      }}
-                      title={`${date}: ${count}件`}
-                    />
-                    <span className="text-[7px] text-slate-600 whitespace-nowrap">{date.slice(-5)}</span>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={chartWeatherData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={4} dataKey="value">
+                    {chartWeatherData.map((entry, i) => (
+                      <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "12px", fontSize: "12px" }}
+                    formatter={(value: any, name: any) => [`${value}件`, name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex justify-center gap-4 mt-2">
+                {chartWeatherData.map((d, i) => (
+                  <div key={d.name} className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                    {d.name}（{d.value}件）
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* 現場別ランキング（BarChart） */}
+          {chartSiteData.length > 0 && (
+            <div className="glass-card rounded-3xl p-5">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">現場別 報告数 TOP5</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={chartSiteData} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis type="number" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} width={90} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "12px", fontSize: "12px" }}
+                    formatter={(value: any) => [`${value}件`, "報告数"]}
+                  />
+                  <Bar dataKey="報告数" radius={[0, 6, 6, 0]}>
+                    {chartSiteData.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* 日別報告数（LineChart） */}
+          {chartDailyData.length > 0 && (
+            <div className="glass-card rounded-3xl p-5">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">日別 報告数推移</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={chartDailyData} margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "12px", fontSize: "12px" }}
+                    formatter={(value: any) => [`${value}件`, "報告数"]}
+                  />
+                  <Line type="monotone" dataKey="報告数" stroke="#818cf8" strokeWidth={2.5} dot={{ fill: "#818cf8", r: 3, stroke: "#818cf8" }} activeDot={{ r: 6, fill: "#818cf8" }} />
+                  <Area type="monotone" dataKey="報告数" fill="url(#lineGradient)" stroke="none" />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           )}
 
@@ -1431,10 +1485,10 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
       {selectedHistory && (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setSelectedHistory(null)}></div>
-          <div className="relative w-full max-w-md max-h-[80vh] overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl flex flex-col sm:max-w-2xl">
+          <div className="relative w-full max-w-md max-h-[80vh] overflow-hidden glass-card rounded-3xl flex flex-col sm:max-w-2xl">
             <div className="p-5 border-b border-slate-800 flex justify-between items-center">
               <div>
-                <p className="text-[10px] font-bold text-amber-500 uppercase">{selectedHistory.report_date}</p>
+                <p className="text-[10px] font-bold gradient-text-indigo uppercase">{selectedHistory.report_date}</p>
                 <h3 className="text-lg font-bold text-white">{selectedHistory.payload?.site_name || "現場名なし"}</h3>
                 <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">{selectedHistory.author_name}</p>
                 <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">{formatSavedAt(selectedHistory.saved_at) || "—"}</p>
@@ -1471,7 +1525,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                       setSelectedHistory(null);
                       setSiteProgress(site);
                     }}
-                    className="text-[10px] font-bold text-amber-400/60 hover:text-amber-400 transition-colors"
+                    className="text-[10px] font-bold text-primary-400/60 hover:text-primary-400 transition-colors"
                   >
                     現場履歴
                   </button>
@@ -1481,14 +1535,14 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
             </div>
             <div className="flex-1 overflow-y-auto p-5">
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+                <div className="glass-card rounded-2xl p-3">
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">天気</p>
                   <p className="text-sm font-bold text-slate-200">
                     {selectedHistory.payload?.weather ?? "—"}
                     {selectedHistory.payload?.temperature_c != null ? ` (${selectedHistory.payload.temperature_c}℃)` : ""}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+                <div className="glass-card rounded-2xl p-3">
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">人員数</p>
                   <p className="text-sm font-bold text-slate-200">{selectedHistory.payload?.labor_count ?? "—"}</p>
                 </div>
@@ -1529,8 +1583,8 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">現場写真</p>
                   <div className="grid grid-cols-3 gap-2">
                     {selectedHistory.payload.photos.map((p: any) => (
-                      <div key={p.id} className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900">
-                        <img src={p.data_url} alt="現場写真" className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(p.data_url, "_blank")} />
+                      <div key={p.id} className="aspect-square rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900 hover:border-primary-400/30 transition-all group">
+                        <img src={p.storage_url || p.data_url} alt="現場写真" className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-300" onClick={() => window.open(p.storage_url || p.data_url, "_blank")} />
                       </div>
                     ))}
                   </div>
@@ -1557,7 +1611,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
       />
 
       <footer className="mt-auto text-center py-4">
-        <p className="text-[10px] text-slate-700 font-bold uppercase tracking-[0.3em]">
+        <p className="text-[10px] text-slate-600 font-bold uppercase tracking-[0.3em]">
           データはこのブラウザに保存されます
           {history.length > 0 && `（${history.length}件）`}
         </p>
@@ -1570,7 +1624,7 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
   return (
     <div className="space-y-1.5">
       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</label>
-      <input className="w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/50 transition-all" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <input className="w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5 text-sm text-white outline-none focus:border-primary-400/50 transition-all" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }

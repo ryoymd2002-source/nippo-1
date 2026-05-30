@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: [
+          '"Noto Sans JP"',
           "ui-sans-serif",
           "system-ui",
           "Segoe UI",
@@ -18,6 +19,45 @@ const config: Config = {
           "Meiryo",
           "sans-serif",
         ],
+      },
+      colors: {
+        primary: {
+          DEFAULT: "#818cf8",
+          50: "#eef2ff",
+          100: "#e0e7ff",
+          200: "#c7d2fe",
+          300: "#a5b4fc",
+          400: "#818cf8",
+          500: "#6366f1",
+          600: "#4f46e5",
+          700: "#4338ca",
+        },
+        accent: {
+          DEFAULT: "#f59e0b",
+          50: "#fffbeb",
+          100: "#fef3c7",
+          200: "#fde68a",
+          300: "#fcd34d",
+          400: "#fbbf24",
+          500: "#f59e0b",
+          600: "#d97706",
+          700: "#b45309",
+        },
+        surface: {
+          DEFAULT: "#0f172a",
+          light: "#1e293b",
+          lighter: "#334155",
+          card: "rgba(30, 27, 75, 0.5)",
+          border: "rgba(129, 140, 248, 0.12)",
+        },
+        success: {
+          DEFAULT: "#10b981",
+          light: "#34d399",
+        },
+        error: {
+          DEFAULT: "#ef4444",
+          light: "#f87171",
+        },
       },
     },
   },

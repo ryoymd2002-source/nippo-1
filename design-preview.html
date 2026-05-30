@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>デザイン改善プレビュー v2 - 鮮やかver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Noto Sans JP", "Hiragino Sans", sans-serif;
+    background: linear-gradient(135deg, #0f172a 0%, #1a1f35 40%, #1e1b4b 100%);
+    color: #f1f5f9;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  h1 {
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 4px;
+  }
+  .subtitle { color: #818cf8; font-size: 14px; font-weight: 500; margin-bottom: 40px; }
+
+  /* ===== SECTION TITLES ===== */
+  .section-title {
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-title .line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, rgba(129,140,248,0.3), transparent);
+  }
+
+  /* ===== CURRENT VS IMPROVED COMPARISON ===== */
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-bottom: 60px;
+  }
+  .col {
+    border-radius: 20px;
+    padding: 28px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .col.current {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(51, 65, 85, 0.4);
+  }
+  .col.improved {
+    background: linear-gradient(160deg, rgba(30, 27, 75, 0.7), rgba(15, 23, 42, 0.8));
+    border: 1px solid rgba(129, 140, 248, 0.2);
+    box-shadow: 0 0 40px rgba(129, 140, 248, 0.05), 0 8px 32px rgba(0,0,0,0.3);
+  }
+  .col.improved::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(129,140,248,0.4), transparent);
+  }
+
+  .col h2 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .col.current h2 { color: #f87171; }
+  .col.improved h2 { color: #34d399; }
+
+  /* ===== TAB NAVIGATION ===== */
+  .tab-nav {
+    display: flex;
+    background: rgba(15, 23, 42, 0.8);
+    padding: 4px;
+    border-radius: 14px;
+    border: 1px solid rgba(51, 65, 85, 0.4);
+    margin-bottom: 24px;
+    gap: 2px;
+  }
+  .tab-nav button {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: transparent;
+    color: #64748b;
+    font-family: inherit;
+  }
+  .tab-nav button.active {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #020617;
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+  }
+  .tab-nav.improved {
+    background: rgba(15, 23, 42, 0.5);
+    border-color: rgba(129, 140, 248, 0.15);
+    padding: 5px;
+    border-radius: 16px;
+  }
+  .tab-nav.improved button {
+    padding: 12px 14px;
+    gap: 7px;
+    font-size: 12px;
+    color: #818cf8;
+  }
+  .tab-nav.improved button svg { width: 17px; height: 17px; }
+  .tab-nav.improved button.active {
+    background: linear-gradient(135deg, #818cf8, #6366f1);
+    color: #ffffff;
+    box-shadow: 0 4px 20px rgba(129, 140, 248, 0.35);
+  }
+
+  /* ===== CARD ===== */
+  .card {
+    border-radius: 18px;
+    border: 1px solid rgba(51, 65, 85, 0.3);
+    background: rgba(30, 41, 59, 0.5);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .card.vibrant {
+    background: linear-gradient(160deg, rgba(30, 27, 75, 0.6), rgba(30, 41, 59, 0.4));
+    border: 1px solid rgba(129, 140, 248, 0.15);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    backdrop-filter: blur(12px);
+  }
+  .card .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .card .card-header .accent-bar {
+    width: 4px;
+    height: 22px;
+    border-radius: 3px;
+    background: linear-gradient(to bottom, #818cf8, #6366f1);
+  }
+  .card .card-header h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+  .card .card-header svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  /* ===== INPUT ===== */
+  .input-group { margin-bottom: 16px; }
+  .input-group label {
+    display: block;
+    font-size: 9px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 6px;
+  }
+  .input {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(51, 65, 85, 0.4);
+    border-radius: 12px;
+    color: #f1f5f9;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .input:focus {
+    border-color: rgba(129, 140, 248, 0.4);
+    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.12);
+  }
+  .input.vibrant {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(30, 27, 75, 0.3));
+    border-color: rgba(129, 140, 248, 0.2);
+    padding: 14px 18px;
+    font-size: 14px;
+  }
+  .input.vibrant:focus {
+    border-color: rgba(129, 140, 248, 0.4);
+    box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.12), 0 0 24px rgba(129, 140, 248, 0.04);
+  }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #020617;
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.2);
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(245, 158, 11, 0.35);
+  }
+  .btn-secondary {
+    background: rgba(51, 65, 85, 0.3);
+    color: #94a3b8;
+    border: 1px solid rgba(51, 65, 85, 0.4);
+  }
+  .btn-gradient {
+    background: linear-gradient(135deg, #818cf8, #6366f1);
+    color: white;
+    box-shadow: 0 4px 20px rgba(129, 140, 248, 0.25);
+    width: 100%;
+    justify-content: center;
+    padding: 16px;
+    border-radius: 14px;
+    font-size: 14px;
+  }
+  .btn-gradient:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(129, 140, 248, 0.35);
+  }
+  .btn-success {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.25);
+    width: 100%;
+    justify-content: center;
+    padding: 16px;
+    border-radius: 14px;
+    font-size: 14px;
+  }
+  .btn-success:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(16, 185, 129, 0.35);
+  }
+
+  /* ===== PHOTO GRID ===== */
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .photo-grid .photo {
+    aspect-ratio: 1;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #334155, #1e293b);
+    border: 1px solid rgba(51, 65, 85, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+  .photo-grid .photo.vibrant {
+    background: linear-gradient(135deg, rgba(30, 27, 75, 0.6), rgba(30, 41, 59, 0.5));
+    border-color: rgba(129, 140, 248, 0.12);
+  }
+  .photo-grid .photo.vibrant:hover {
+    transform: scale(1.06);
+    border-color: rgba(129, 140, 248, 0.3);
+    box-shadow: 0 8px 28px rgba(129, 140, 248, 0.15);
+    z-index: 2;
+  }
+  .photo-grid .photo .badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .photo-grid .photo:hover .badge { opacity: 1; }
+
+  /* ===== CHART ===== */
+  .chart-preview {
+    height: 120px;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 16px 0;
+  }
+  .chart-preview .bar {
+    flex: 1;
+    border-radius: 4px 4px 0 0;
+    transition: all 0.3s;
+    position: relative;
+  }
+  .chart-preview .bar.vibrant { border-radius: 6px 6px 2px 2px; }
+
+  /* ===== SWATCHES ===== */
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+  .swatch {
+    border-radius: 14px;
+    padding: 18px 10px 14px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .swatch .sub { opacity: 0.5; font-size: 9px; font-weight: 400; margin-top: 3px; }
+
+  /* ===== HISTORY LIST ITEMS ===== */
+  .history-item {
+    border-radius: 14px;
+    border: 1px solid rgba(129, 140, 248, 0.08);
+    background: linear-gradient(135deg, rgba(30, 27, 75, 0.3), rgba(30, 41, 59, 0.2));
+    padding: 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .history-item:hover {
+    border-color: rgba(129, 140, 248, 0.2);
+    background: linear-gradient(135deg, rgba(30, 27, 75, 0.5), rgba(30, 41, 59, 0.3));
+  }
+  .history-item .dot {
+    width: 4px;
+    height: 36px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* ===== MOCKUPS ROW ===== */
+  .mockup-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 60px;
+  }
+  @media (max-width: 900px) {
+    .comparison-grid, .mockup-row { grid-template-columns: 1fr; }
+    .swatch-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>日報アプリ PRO</h1>
+  <p class="subtitle">✦ デザイン改善プレビュー v2 — 鮮やかでスタイリッシュなダークテーマ</p>
+
+  <!-- ===== COLOR PALETTE ===== -->
+  <div class="section-title">
+    <span>🎨 カラーパレット（改善後）</span>
+    <span class="line"></span>
+  </div>
+  <div class="swatch-grid">
+    <div class="swatch" style="background:linear-gradient(135deg,#818cf8,#6366f1);color:#fff">
+      Indigo<br>#818cf8
+      <div class="sub">タブactive / メイン</div>
+    </div>
+    <div class="swatch" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#020617">
+      Amber<br>#f59e0b
+      <div class="sub">アクセント / 保存</div>
+    </div>
+    <div class="swatch" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff">
+      Emerald<br>#10b981
+      <div class="sub">生成 / 成功</div>
+    </div>
+    <div class="swatch" style="background:linear-gradient(135deg,#f472b6,#ec4899);color:#fff">
+      Pink<br>#f472b6
+      <div class="sub">写真関連</div>
+    </div>
+    <div class="swatch" style="background:linear-gradient(135deg,#60a5fa,#3b82f6);color:#fff">
+      Blue<br>#60a5fa
+      <div class="sub">履歴 / 情報</div>
+    </div>
+    <div class="swatch" style="background:linear-gradient(135deg,#a78bfa,#8b5cf6);color:#fff">
+      Violet<br>#a78bfa
+      <div class="sub">グラフ色</div>
+    </div>
+    <div class="swatch" style="background:linear-gradient(135deg,#fb923c,#f97316);color:#fff">
+      Orange<br>#fb923c
+      <div class="sub">警告 / 注意</div>
+    </div>
+    <div class="swatch" style="background:linear-gradient(135deg,#1e1b4b,#0f172a);border-color:rgba(129,140,248,0.2);color:#818cf8">
+      Deep<br>#1e1b4b
+      <div class="sub">背景グラデ</div>
+    </div>
+  </div>
+
+  <!-- ===== COMPARISON ===== -->
+  <div class="section-title">
+    <span>📐 現在 vs 改善後 比較</span>
+    <span class="line"></span>
+  </div>
+
+  <div class="comparison-grid">
+    <!-- CURRENT -->
+    <div class="col current">
+      <h2>🔴 現在のデザイン</h2>
+      <div class="tab-nav">
+        <button class="active">作成</button>
+        <button>履歴</button>
+        <button>📷 写真</button>
+        <button>📊 集計</button>
+      </div>
+      <div class="card">
+        <div class="card-header"><span>📋</span><h3 style="color:#94a3b8">現場情報</h3></div>
+        <div class="input-group"><label>現場名</label><input class="input" value="〇〇邸"></div>
+        <div class="input-group"><label>報告者</label><input class="input" placeholder="山田太郎"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn" style="background:#f59e0b;color:#020617;font-weight:700">保存</button>
+        <button class="btn btn-secondary">キャンセル</button>
+      </div>
+      <div class="photo-grid">
+        <div class="photo">🏗️</div><div class="photo">📐</div><div class="photo">🧱</div><div class="photo">🔧</div>
+      </div>
+    </div>
+
+    <!-- IMPROVED (VIBRANT) -->
+    <div class="col improved">
+      <h2>🟢 改善後 — 鮮やかver</h2>
+      <div class="tab-nav improved">
+        <button class="active">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          作成
+        </button>
+        <button>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          履歴
+        </button>
+        <button>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          フォト
+        </button>
+        <button>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          集計
+        </button>
+      </div>
+
+      <div class="card vibrant">
+        <div class="card-header">
+          <div class="accent-bar"></div>
+          <svg fill="none" viewBox="0 0 24 24" stroke="#818cf8"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <h3>現場情報</h3>
+        </div>
+        <div class="input-group"><label>現場名ヒント</label><input class="input vibrant" value="〇〇邸"></div>
+        <div class="input-group"><label>報告者氏名</label><input class="input vibrant" placeholder="例：山田太郎"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn btn-primary">保存する</button>
+        <button class="btn btn-secondary">クリア</button>
+      </div>
+
+      <div class="photo-grid">
+        <div class="photo vibrant">🏗️<div class="badge">✕</div></div>
+        <div class="photo vibrant">📐<div class="badge">✕</div></div>
+        <div class="photo vibrant">🧱<div class="badge">✕</div></div>
+        <div class="photo vibrant">🔧<div class="badge">✕</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FULL MOCKUP ===== -->
+  <div class="section-title">
+    <span>📱 改善後 各タブモックアップ</span>
+    <span class="line"></span>
+  </div>
+
+  <div class="mockup-row">
+    <!-- CREATE TAB -->
+    <div class="card vibrant" style="padding:18px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+        <div>
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.2em;background:linear-gradient(135deg,#818cf8,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:3px">Daily Report</div>
+          <div style="font-size:20px;font-weight:900;letter-spacing:-0.02em;color:#f1f5f9">日報アプリ <span style="font-size:14px;background:linear-gradient(135deg,#fbbf24,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">PRO</span></div>
+        </div>
+      </div>
+
+      <div class="tab-nav improved" style="margin-bottom:14px">
+        <button class="active"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>作成</button>
+        <button><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>履歴</button>
+        <button><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>写真</button>
+        <button><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>集計</button>
+      </div>
+
+      <!-- site/date/author row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div style="border-radius:12px;border:1px solid rgba(129,140,248,0.12);background:rgba(15,23,42,0.4);padding:10px 12px">
+          <div style="font-size:8px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px">現場</div>
+          <div style="font-size:13px;font-weight:500;color:#e2e8f0">〇〇邸</div>
+        </div>
+        <div style="border-radius:12px;border:1px solid rgba(129,140,248,0.12);background:rgba(15,23,42,0.4);padding:10px 12px">
+          <div style="font-size:8px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:4px">報告者</div>
+          <div style="font-size:13px;font-weight:500;color:#e2e8f0">山田太郎</div>
+        </div>
+      </div>
+
+      <!-- voice button -->
+      <div style="border-radius:14px;border:1px solid rgba(129,140,248,0.1);background:linear-gradient(135deg,rgba(30,27,75,0.4),rgba(15,23,42,0.3));padding:3px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;color:#818cf8;font-weight:700;font-size:13px">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+          音声入力
+        </div>
+      </div>
+
+      <textarea style="width:100%;min-height:90px;border-radius:14px;border:1px solid rgba(129,140,248,0.12);background:rgba(15,23,42,0.5);padding:14px;color:#f1f5f9;font-size:13px;font-family:inherit;outline:none;margin-bottom:12px;resize:none" placeholder="A現場で9時からボード貼り。17時終了。"></textarea>
+
+      <button class="btn-success">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        日報データを生成する
+      </button>
+    </div>
+
+    <!-- DASHBOARD TAB -->
+    <div class="card vibrant" style="padding:18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="width:4px;height:20px;border-radius:3px;background:linear-gradient(to bottom,#818cf8,#6366f1)"></div>
+        <svg fill="none" viewBox="0 0 24 24" stroke="#818cf8" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <h3 style="font-size:14px;font-weight:700;color:#e2e8f0">ダッシュボード</h3>
+      </div>
+
+      <!-- Weather -->
+      <div style="border-radius:14px;border:1px solid rgba(129,140,248,0.08);background:rgba(15,23,42,0.3);padding:16px;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px">☀️ 天気分布</div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="width:72px;height:72px;border-radius:50%;background:conic-gradient(#f59e0b 0% 45%, #64748b 45% 75%, #60a5fa 75% 100%);flex-shrink:0;border:2px solid rgba(129,140,248,0.15)"></div>
+          <div style="flex:1;font-size:11px;color:#cbd5e1">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="width:8px;height:8px;border-radius:3px;background:#f59e0b"></span>晴れ <strong>45%</strong></div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="width:8px;height:8px;border-radius:3px;background:#64748b"></span>曇り <strong>30%</strong></div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:3px;background:#60a5fa"></span>雨 <strong>25%</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Line chart -->
+      <div style="border-radius:14px;border:1px solid rgba(129,140,248,0.08);background:rgba(15,23,42,0.3);padding:16px;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">📈 日別報告数</div>
+        <svg viewBox="0 0 200 50" style="width:100%;height:50px">
+          <defs>
+            <linearGradient id="lineGrad2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#818cf8" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <polyline points="0,45 25,30 50,38 75,18 100,25 125,10 150,20 175,8 200,12" stroke="#818cf8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <polyline points="0,45 25,30 50,38 75,18 100,25 125,10 150,20 175,8 200,12" stroke="url(#lineGrad2)" stroke-width="8" fill="none" opacity="0.3" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <!-- Bar chart -->
+      <div style="border-radius:14px;border:1px solid rgba(129,140,248,0.08);background:rgba(15,23,42,0.3);padding:16px">
+        <div style="font-size:10px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">📊 サイト別報告数</div>
+        <div class="chart-preview" style="height:70px">
+          <div class="bar vibrant" style="height:65%;background:linear-gradient(to top,#a78bfa,#c4b5fd)"></div>
+          <div class="bar vibrant" style="height:100%;background:linear-gradient(to top,#f59e0b,#fbbf24)"></div>
+          <div class="bar vibrant" style="height:45%;background:linear-gradient(to top,#10b981,#34d399)"></div>
+          <div class="bar vibrant" style="height:80%;background:linear-gradient(to top,#60a5fa,#93c5fd)"></div>
+          <div class="bar vibrant" style="height:30%;background:linear-gradient(to top,#f472b6,#f9a8d4)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div class="card vibrant" style="padding:18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="width:4px;height:20px;border-radius:3px;background:linear-gradient(to bottom,#60a5fa,#3b82f6)"></div>
+        <svg fill="none" viewBox="0 0 24 24" stroke="#60a5fa" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <h3 style="font-size:14px;font-weight:700;color:#e2e8f0">履歴</h3>
+      </div>
+
+      <!-- filter -->
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <div style="flex:1;border-radius:10px;border:1px solid rgba(129,140,248,0.1);background:rgba(15,23,42,0.4);padding:10px 12px;font-size:12px;color:#818cf8;display:flex;align-items:center;gap:6px">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+          現場で絞り込み
+        </div>
+        <div style="width:36px;height:36px;border-radius:10px;border:1px solid rgba(129,140,248,0.1);background:rgba(15,23,42,0.4);display:flex;align-items:center;justify-content:center">
+          <svg fill="none" viewBox="0 0 24 24" stroke="#818cf8" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </div>
+      </div>
+
+      <!-- list items -->
+      <div class="history-item">
+        <div class="dot" style="background:linear-gradient(to bottom,#f59e0b,#d97706)"></div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:#e2e8f0">A現場 ボード貼り</div>
+          <div style="font-size:10px;color:#64748b;display:flex;gap:10px;margin-top:2px">
+            <span>2025/05/30</span>
+            <span>山田太郎</span>
+            <span>☀️</span>
+          </div>
+        </div>
+        <svg fill="none" viewBox="0 0 24 24" stroke="#475569" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </div>
+      <div class="history-item">
+        <div class="dot" style="background:linear-gradient(to bottom,#10b981,#059669)"></div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:#e2e8f0">B現場 鉄筋組み</div>
+          <div style="font-size:10px;color:#64748b;display:flex;gap:10px;margin-top:2px">
+            <span>2025/05/29</span>
+            <span>鈴木一郎</span>
+            <span>☁️</span>
+          </div>
+        </div>
+        <svg fill="none" viewBox="0 0 24 24" stroke="#475569" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </div>
+      <div class="history-item">
+        <div class="dot" style="background:linear-gradient(to bottom,#818cf8,#6366f1)"></div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:#e2e8f0">C現場 コンクリ打設</div>
+          <div style="font-size:10px;color:#64748b;display:flex;gap:10px;margin-top:2px">
+            <span>2025/05/28</span>
+            <span>佐藤健</span>
+            <span>🌧️</span>
+          </div>
+        </div>
+        <svg fill="none" viewBox="0 0 24 24" stroke="#475569" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== KEY CHANGES ===== -->
+  <div class="section-title">
+    <span>📋 主な変更点</span>
+    <span class="line"></span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:40px">
+    <div style="border-radius:14px;border:1px solid rgba(129,140,248,0.1);background:rgba(30,27,75,0.3);padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:16px">🎨</span>
+        <span style="font-weight:700;font-size:13px;color:#e2e8f0">カラーを鮮やかに</span>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;line-height:1.8">
+        背景をフラットな黒 → 藍色のグラデーションに変更。<br>
+        タブactiveを琥珀 → インディゴ（青紫）に変更。<br>
+        全体的に各所にグラデーション効果を追加。
+      </div>
+    </div>
+    <div style="border-radius:14px;border:1px solid rgba(129,140,248,0.1);background:rgba(30,27,75,0.3);padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:16px">🔤</span>
+        <span style="font-weight:700;font-size:13px;color:#e2e8f0">フォント + タイポグラフィ</span>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;line-height:1.8">
+        Noto Sans JP を追加して日本語を美しく。<br>
+        見出しは weight-900 + gradient text。<br>
+        ラベルは色つき（インディゴ）で統一。
+      </div>
+    </div>
+    <div style="border-radius:14px;border:1px solid rgba(129,140,248,0.1);background:rgba(30,27,75,0.3);padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:16px">🪟</span>
+        <span style="font-weight:700;font-size:13px;color:#e2e8f0">カード + Glassmorphism</span>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;line-height:1.8">
+        紫がかったグラデーション背景のカード。<br>
+        左上に光るエッジ（top glow）を追加。<br>
+        左アクセントバーでセクションを区別。
+      </div>
+    </div>
+    <div style="border-radius:14px;border:1px solid rgba(129,140,248,0.1);background:rgba(30,27,75,0.3);padding:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:16px">📊</span>
+        <span style="font-weight:700;font-size:13px;color:#e2e8f0">グラフ + タブ</span>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;line-height:1.8">
+        SVGアイコンでタブを刷新（絵文字排除）。<br>
+        グラフにグラデーション塗りつぶし。<br>
+        サイト別に5色（紫/琥珀/緑/青/ピンク）で色分け。
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center;padding:24px 0;color:#475569;font-size:12px;border-top:1px solid rgba(129,140,248,0.08)">
+    📁 このファイルはブラウザで開いて表示できます — 実装はコード編集が必要です
+  </div>
+</div>
+</body>
+</html>

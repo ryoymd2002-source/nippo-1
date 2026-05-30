@@ -1,5 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
+
+const notoSansJP = Noto_Sans_JP({
+  subsets: ["latin"],
+  weight: ["400", "500", "700", "900"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "日報アプリ",
@@ -12,7 +19,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#020617",
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({
@@ -22,7 +29,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body className="font-sans">{children}</body>
+      <body className={`${notoSansJP.className} font-sans antialiased`}>
+        {children}
+      </body>
     </html>
   );
 }
