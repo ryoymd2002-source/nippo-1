@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -312,7 +313,7 @@ export default function DailyReportApp() {
   };
 
   const saveToLocal = async () => {
-    const target = report ?? emptyReport(transcript);
+    const target = report ?? { ...emptyReport(transcript), photos };
     if (!transcript.trim()) {
       setError("保存するテキストがありません");
       return;
@@ -923,7 +924,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               <button
                 type="button"
                 onClick={() => {
-                  const r = report ?? emptyReport(transcript);
+                  const r = report ?? { ...emptyReport(transcript), photos };
                   printReport(r, authorName, new Date().toISOString());
                 }}
                 disabled={!transcript.trim()}
@@ -934,7 +935,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               <button
                 type="button"
                 onClick={() => {
-                  const r = report ?? emptyReport(transcript);
+                  const r = report ?? { ...emptyReport(transcript), photos };
                   downloadPdf(r, authorName, new Date().toISOString());
                 }}
                 disabled={!transcript.trim()}
@@ -945,7 +946,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               <button
                 type="button"
                 onClick={() => {
-                  const r = report ?? emptyReport(transcript);
+                  const r = report ?? { ...emptyReport(transcript), photos };
                   const name = prompt("テンプレート名を入力してください", r.site_name || "テンプレート");
                   if (!name) return;
                   const newTemplate: Template = {
