@@ -582,6 +582,12 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
       const base = r ?? emptyReport(transcript);
       return { ...base, ...patch };
     });
+    // テキストエリアにもテンプレート内容を反映
+    setTranscript((prev) => {
+      if (prev.trim()) return prev; // 既にテキストがあればそのまま
+      const formatted = reportToFormattedText({ ...emptyReport(""), ...patch } as DailyReport);
+      return formatted || prev;
+    });
     if (t.site_name) setSiteHint(t.site_name);
     setShowTemplateDropdown(false);
   }, [transcript]);
