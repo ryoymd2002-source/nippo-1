@@ -573,23 +573,37 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
 
   // === テンプレート読み込み ===
   const loadTemplate = useCallback((t: Template) => {
-    const patch = {
-      site_name: t.site_name,
-      materials: t.materials.map((m) => ({ name: m.name, quantity: m.quantity, unit: m.unit })),
-      work_items: t.work_items.map((w) => ({ description: w.description })),
-    };
-    setReport((r) => {
-      const base = r ?? emptyReport(transcript);
-      return { ...base, ...patch };
-    });
-    // テキストエリアにもテンプレート内容を反映
-    setTranscript((prev) => {
-      if (prev.trim()) return prev; // 既にテキストがあればそのまま
-      const formatted = reportToFormattedText({ ...emptyReport(""), ...patch } as DailyReport);
-      return formatted || prev;
-    });
-    if (t.site_name) setSiteHint(t.site_name);
-    setShowTemplateDropdown(false);
+    console.log("[loadTemplate] called with", t.name, t.site_name);
+    try {
+      const patch = {
+        site_name: t.site_name,
+        materials: t.materials ? t.materials.map((m) => ({ name: m.name, quantity: m.quantity, unit: m.unit })) : [],
+        work_items: t.work_items ? t.work_items.map((w) => ({ description: w.description })) : [],
+      };
+      console.log("[loadTemplate] patch:", patch);
+      setReport((r) => {
+        console.log("[loadTemplate] setReport callback, r =", r, "transcript =", transcript);
+        const base = r ?? emptyReport(transcript);
+        const result = { ...base, ...patch };
+        console.log("[loadTemplate] setReport result:", result);
+        return result;
+      });
+      // テキストエリアをテンプレート内容で上書き（常に反映）
+      setTranscript(() => {
+        const merged = { ...emptyReport(""), ...patch } as DailyReport;
+        const formatted = reportToFormattedText(merged);
+        console.log("[loadTemplate] formatted:", formatted);
+        return formatted;
+      });
+      if (t.site_name) {
+        console.log("[loadTemplate] setting siteHint:", t.site_name);
+        setSiteHint(t.site_name);
+      }
+      setShowTemplateDropdown(false);
+      console.log("[loadTemplate] completed successfully");
+    } catch (err) {
+      console.error("[loadTemplate] ERROR:", err);
+    }
   }, [transcript]);
 
   // === テンプレート削除 ===
@@ -1679,6 +1693,9 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
       />
 
       <footer className="mt-auto text-center py-4">
+        <p className="text-[10px] text-slate-400 font-bold">
+          v2.1
+        </p>
         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">
           データはこのブラウザに保存されます
           {history.length > 0 && `（${history.length}件）`}
