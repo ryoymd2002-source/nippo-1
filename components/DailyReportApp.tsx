@@ -1696,11 +1696,6 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
         onChange={handleFileChange}
       />
 
-      <footer className="mt-auto text-center py-4">
-        <p className="text-[10px] text-slate-400 font-bold">
-          v2.1
-        </p>
-      </footer>
     </main>
   );
 }
