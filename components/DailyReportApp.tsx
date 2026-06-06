@@ -573,15 +573,18 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
 
   // === テンプレート読み込み ===
   const loadTemplate = useCallback((t: Template) => {
-    if (!report) return;
-    updateReport({
+    const patch = {
       site_name: t.site_name,
       materials: t.materials.map((m) => ({ name: m.name, quantity: m.quantity, unit: m.unit })),
       work_items: t.work_items.map((w) => ({ description: w.description })),
+    };
+    setReport((r) => {
+      const base = r ?? emptyReport(transcript);
+      return { ...base, ...patch };
     });
     if (t.site_name) setSiteHint(t.site_name);
     setShowTemplateDropdown(false);
-  }, [report]);
+  }, [transcript]);
 
   // === テンプレート削除 ===
   const deleteTemplate = useCallback((id: string) => {
@@ -591,7 +594,10 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
   }, [templates]);
 
   const updateReport = (patch: Partial<DailyReport>) => {
-    setReport((r) => (r ? { ...r, ...patch } : r));
+    setReport((r) => {
+      const base = r ?? emptyReport(transcript);
+      return { ...base, ...patch };
+    });
   };
 
   // === カレンダー用ヘルパー ===
