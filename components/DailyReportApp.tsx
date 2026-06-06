@@ -1700,10 +1700,6 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
         <p className="text-[10px] text-slate-400 font-bold">
           v2.1
         </p>
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">
-          データはこのブラウザに保存されます
-          {history.length > 0 && `（${history.length}件）`}
-        </p>
       </footer>
     </main>
   );
