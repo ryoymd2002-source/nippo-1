@@ -109,6 +109,7 @@ export default function DailyReportApp() {
   const [galleryGroupBy, setGalleryGroupBy] = useState<"site" | "date">("site");
   const [templates, setTemplates] = useState<Template[]>(loadTemplates);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const templateDropdownRef = useRef<HTMLDivElement>(null);
   const [siteProgress, setSiteProgress] = useState<string | null>(null);
 
   const formatSavedAt = (iso?: string) => {
@@ -414,11 +415,14 @@ export default function DailyReportApp() {
     });
   }, []);
 
-  // 現場名プルダウン外クリックで閉じる
+  // 現場名プルダウン・テンプレートプルダウン外クリックで閉じる
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (siteDropdownRef.current && !siteDropdownRef.current.contains(e.target as Node)) {
         setShowSiteDropdown(false);
+      }
+      if (templateDropdownRef.current && !templateDropdownRef.current.contains(e.target as Node)) {
+        setShowTemplateDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -817,7 +821,7 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                 <span className="text-[10px] text-emerald-400">（{templates.length}件）</span>
               </button>
               {showTemplateDropdown && (
-                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-slate-200 bg-white shadow-lg max-h-60 overflow-y-auto">
+                <div ref={templateDropdownRef} className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-slate-200 bg-white shadow-lg max-h-60 overflow-y-auto">
                   {templates.map((t) => (
                     <div key={t.id} className="flex items-center justify-between px-3 py-2.5 border-b border-slate-200 last:border-b-0">
                       <button
