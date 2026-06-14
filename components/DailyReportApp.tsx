@@ -41,6 +41,8 @@ interface Template {
   site_name: string;
   materials: { name: string; quantity: number | null; unit: string | null }[];
   work_items: { description: string }[];
+  labor_count: number | null;
+  remarks: string | null;
   created_at: string;
 }
 
@@ -559,6 +561,8 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
       site_name: report.site_name || "",
       materials: report.materials.map((m) => ({ name: m.name, quantity: m.quantity, unit: m.unit })),
       work_items: report.work_items.map((w) => ({ description: w.description })),
+      labor_count: report.labor_count,
+      remarks: report.remarks,
       created_at: new Date().toISOString(),
     };
     const next = [newTemplate, ...templates].slice(0, 20);
@@ -574,6 +578,8 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
         site_name: t.site_name,
         materials: t.materials ? t.materials.map((m) => ({ name: m.name, quantity: m.quantity, unit: m.unit })) : [],
         work_items: t.work_items ? t.work_items.map((w) => ({ description: w.description })) : [],
+        labor_count: t.labor_count,
+        remarks: t.remarks,
       };
       console.log("[loadTemplate] patch:", patch);
       setReport((r) => {
@@ -976,6 +982,8 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
                     site_name: r.site_name || "",
                     materials: r.materials.map((m) => ({ name: m.name, quantity: m.quantity, unit: m.unit })),
                     work_items: r.work_items.map((w) => ({ description: w.description })),
+                    labor_count: r.labor_count,
+                    remarks: r.remarks,
                     created_at: new Date().toISOString(),
                   };
                   const next = [newTemplate, ...templates].slice(0, 20);
