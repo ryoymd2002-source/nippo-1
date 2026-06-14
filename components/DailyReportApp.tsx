@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { emptyReport, type DailyReport, type PhotoEntry } from "@/lib/report-types";
 import { reportToCsv, csvHeader } from "@/lib/csv-export";
 import { storageApi, StoredReport } from "@/lib/storage";
-import { fetchWeather } from "@/lib/weather";
 import { uploadPhotoToStorage } from "@/lib/supabase";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -289,14 +288,6 @@ export default function DailyReportApp() {
       if (!res.ok || !data.report) {
         setError(data.error ?? "構造化に失敗しました");
         return;
-      }
-      
-      if (!data.report.weather || data.report.weather === "不明") {
-        const weatherData = await fetchWeather(reportDate);
-        if (weatherData) {
-          data.report.weather = weatherData.weather as any;
-          data.report.temperature_c = weatherData.temperature;
-        }
       }
 
       // 撮影した写真をレポートに含める
@@ -1005,7 +996,32 @@ ${photosHtml ? `<h2>現場写真</h2>${photosHtml}` : ""}
               <div className="glass-card rounded-3xl p-5 space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="現場名" value={report.site_name} onChange={(v) => updateReport({ site_name: v })} />
-                  <Field label="天気" value={`${report.weather ?? ""}${report.temperature_c ? ` (${report.temperature_c}℃)` : ""}`} onChange={(v) => updateReport({ weather: v as any })} />
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">天気</label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-primary-400/50 transition-all"
+                        value={report.weather ?? ""}
+                        onChange={(e) => updateReport({ weather: e.target.value === "" ? null : e.target.value as any })}
+                      >
+                        <option value="">選択してください</option>
+                        <option value="晴">晴</option>
+                        <option value="曇">曇</option>
+                        <option value="雨">雨</option>
+                        <option value="雪">雪</option>
+                        <option value="不明">不明</option>
+                      </select>
+                      {report.weather && (
+                        <input
+                          type="number"
+                          className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-primary-400/50 transition-all"
+                          placeholder="気温℃"
+                          value={report.temperature_c ?? ""}
+                          onChange={(e) => updateReport({ temperature_c: e.target.value ? parseFloat(e.target.value) : null })}
+                        />
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">人員数</label>
